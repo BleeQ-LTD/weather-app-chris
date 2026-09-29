@@ -1,69 +1,157 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import SearchForm from "@/components/SearchForm";
+import WeatherResults from "@/components/WeatherResults";
+import type { WeatherData, WeatherErrorBody } from "@/lib/weather";
+
+// Every screen the app can be on. Only one is possible at a time.
+type ViewState =
+  | { status: "idle" }
+  | { status: "loading"; query: string }
+  | { status: "success"; data: WeatherData }
+  | { status: "not-found"; message: string }
+  | { status: "error"; message: string; query: string };
+
+const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
 
 export default function Home() {
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<ViewState>({ status: "idle" });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  const search = useCallback(async (location: string) => {
+    // Cancel any search still in flight so an older, slower response
+    // can't overwrite the newer one
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+
+    setView({ status: "loading", query: location });
+
+    try {
+      const response = await fetch(
+        `/api/weather?q=${encodeURIComponent(location)}`,
+        { signal: controller.signal }
+      );
+      const body = await response.json().catch(() => null);
+
+      if (response.ok && body) {
+        setView({ status: "success", data: body as WeatherData });
+        return;
+      }
+
+      const error = (body as WeatherErrorBody | null)?.error;
+
+      if (error?.code === "LOCATION_NOT_FOUND") {
+        setView({ status: "not-found", message: error.message });
+        inputRef.current?.select(); // ready for the user to retype
+        return;
+      }
+
+      setView({
+        status: "error",
+        message: error?.message ?? "The weather service had a problem. Try again.",
+        query: location,
+      });
+    } catch {
+      if (controller.signal.aborted) return; // replaced by a newer search
+      setView({
+        status: "error",
+        message: "Couldn't connect. Check your internet connection and try again.",
+        query: location,
+      });
+    }
+  }, []);
+
+  function pickCity(city: string) {
+    setQuery(city);
+    search(city);
+  }
+
+  // Short text for screen readers, announced whenever the state changes
+  const announcement = {
+    idle: "",
+    loading: view.status === "loading" ? `Loading weather for ${view.query}` : "",
+    success: view.status === "success" ? `Showing weather for ${view.data.location.name}` : "",
+    "not-found": view.status === "not-found" ? view.message : "",
+    error: view.status === "error" ? view.message : "",
+  }[view.status];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
+      <header className="mb-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Weather</h1>
+        <p className="text-muted">Current conditions and a 3-day forecast.</p>
+      </header>
+
+      <SearchForm
+        value={query}
+        onChange={setQuery}
+        onSearch={search}
+        isLoading={view.status === "loading"}
+        inputRef={inputRef}
+      />
+
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
+
+      <section className="mt-10" aria-busy={view.status === "loading"}>
+        {view.status === "idle" && (
+          <div>
+            <p className="text-lg">Search for a place to see its weather.</p>
+            <p className="mt-4 text-sm text-muted">Or pick one:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {QUICK_PICKS.map((city) => (
+                <button
+                  key={city}
+                  type="button"
+                  onClick={() => pickCity(city)}
+                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm hover:border-rain"
+                >
+                  {city}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {view.status === "loading" && (
+          <div>
+            <p className="text-muted">Loading weather for {view.query}…</p>
+            <div className="mt-6 space-y-4 motion-safe:animate-pulse" aria-hidden="true">
+              <div className="h-8 w-40 rounded bg-line" />
+              <div className="h-16 w-56 rounded bg-line" />
+              <div className="h-20 w-full rounded bg-line" />
+            </div>
+          </div>
+        )}
+
+        {view.status === "not-found" && (
+          <div className="border-l-4 border-alert pl-4">
+            <h2 className="font-semibold">Location not found</h2>
+            <p className="mt-1">{view.message}</p>
+          </div>
+        )}
+
+        {view.status === "error" && (
+          <div className="border-l-4 border-alert pl-4">
+            <h2 className="font-semibold">Weather unavailable</h2>
+            <p className="mt-1">{view.message}</p>
+            <button
+              type="button"
+              onClick={() => search(view.query)}
+              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {view.status === "success" && <WeatherResults data={view.data} />}
+      </section>
+    </main>
   );
 }

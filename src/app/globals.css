@@ -1,26 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sky: #e8eef1;     /* page background: overcast sky */
+  --surface: #f6f8f9; /* inputs and buttons */
+  --ink: #15222b;     /* main text */
+  --muted: #53636d;   /* secondary text */
+  --line: #c7d3d9;    /* borders and dividers */
+  --rain: #2a679a;    /* primary actions, cool end of temperature bars */
+  --sun: #d48a24;     /* warm end of temperature bars */
+  --alert: #a3362a;   /* errors */
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-sky: var(--sky);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-rain: var(--rain);
+  --color-sun: var(--sun);
+  --color-alert: var(--alert);
+  --font-sans: var(--font-bricolage), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--sky);
+  color: var(--ink);
+}
+
+/* Clear keyboard focus on every interactive element */
+:focus-visible {
+  outline: 3px solid var(--rain);
+  outline-offset: 2px;
 }
