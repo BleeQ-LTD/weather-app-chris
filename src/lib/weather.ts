@@ -72,3 +72,19 @@ export function splitLocalDateTime(value: string) {
 export function formatTemp(celsius: number): string {
   return `${Math.round(celsius)}°C`;
 }
+
+// ---- Search suggestions (from /api/search) ----
+
+export interface Suggestion {
+  id: number;
+  name: string;
+  region: string;
+  country: string;
+}
+
+// "Lagos, Lagos, Nigeria" -> "Lagos, Nigeria" (skips empty or repeated parts)
+export function formatPlace({ name, region, country }: Suggestion): string {
+  return [name, region && region !== name ? region : null, country]
+    .filter(Boolean)
+    .join(", ");
+}
