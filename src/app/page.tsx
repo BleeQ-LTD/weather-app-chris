@@ -3,17 +3,20 @@
 import { useCallback, useRef, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
-import type { WeatherData, WeatherErrorBody } from "@/lib/weather";
+import { formatPlace } from "@/lib/weather";
+import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
   | { status: "idle" }
   | { status: "loading"; query: string }
+  | { status: "choose"; query: string; options: Suggestion[] }
   | { status: "success"; data: WeatherData }
   | { status: "not-found"; message: string }
-  | { status: "error"; message: string; query: string };
+  | { status: "error"; message: string; query: string; label: string };
 
 const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
+const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -21,59 +24,128 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
-  const search = useCallback(async (location: string) => {
-    // Cancel any search still in flight so an older, slower response
-    // can't overwrite the newer one
+  // Cancel any request still in flight so an older, slower response
+  // can't overwrite a newer one
+  function startRequest() {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
+    return controller;
+  }
 
-    setView({ status: "loading", query: location });
+  // Step 2: get the weather.
+  // apiQuery is what we send ("Lagos" or "id:12345");
+  // label is what the user sees ("Lagos, Nigeria")
+  const fetchWeather = useCallback(
+    async (apiQuery: string, label: string, controller = startRequest()) => {
+      setView({ status: "loading", query: label });
 
-    try {
-      const response = await fetch(
-        `/api/weather?q=${encodeURIComponent(location)}`,
-        { signal: controller.signal }
-      );
-      const body = await response.json().catch(() => null);
+      try {
+        const response = await fetch(
+          `/api/weather?q=${encodeURIComponent(apiQuery)}`,
+          { signal: controller.signal }
+        );
+        const body = await response.json().catch(() => null);
 
-      if (response.ok && body) {
-        setView({ status: "success", data: body as WeatherData });
+        if (response.ok && body) {
+          setView({ status: "success", data: body as WeatherData });
+          return;
+        }
+
+        const error = (body as WeatherErrorBody | null)?.error;
+
+        if (error?.code === "LOCATION_NOT_FOUND") {
+          setView({ status: "not-found", message: error.message });
+          inputRef.current?.select(); // ready for the user to retype
+          return;
+        }
+
+        setView({
+          status: "error",
+          message: error?.message ?? "The weather service had a problem. Try again.",
+          query: apiQuery,
+          label,
+        });
+      } catch {
+        if (controller.signal.aborted) return; // replaced by a newer search
+        setView({
+          status: "error",
+          message: "Couldn't connect. Check your internet connection and try again.",
+          query: apiQuery,
+          label,
+        });
+      }
+    },
+    []
+  );
+
+  // Step 1: when Search is pressed, check how many places match first
+  const handleSearch = useCallback(
+    async (text: string) => {
+      // Too short to search: go straight to the weather lookup
+      if (text.length < MIN_SEARCH_LENGTH) {
+        fetchWeather(text, text);
         return;
       }
 
-      const error = (body as WeatherErrorBody | null)?.error;
+      const controller = startRequest();
+      setView({ status: "loading", query: text });
 
-      if (error?.code === "LOCATION_NOT_FOUND") {
-        setView({ status: "not-found", message: error.message });
-        inputRef.current?.select(); // ready for the user to retype
+      let matches: Suggestion[];
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(text)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+        matches = (await response.json()) as Suggestion[];
+      } catch {
+        if (controller.signal.aborted) return;
+        // If the search check fails, fall back to the old behaviour:
+        // let WeatherAPI pick its best match for the typed text
+        fetchWeather(text, text, controller);
         return;
       }
 
-      setView({
-        status: "error",
-        message: error?.message ?? "The weather service had a problem. Try again.",
-        query: location,
-      });
-    } catch {
-      if (controller.signal.aborted) return; // replaced by a newer search
-      setView({
-        status: "error",
-        message: "Couldn't connect. Check your internet connection and try again.",
-        query: location,
-      });
-    }
-  }, []);
+      if (matches.length === 0) {
+        setView({
+          status: "not-found",
+          message: `We couldn't find "${text}". Check the spelling or try a nearby city.`,
+        });
+        inputRef.current?.select();
+        return;
+      }
+
+      if (matches.length === 1) {
+        const [place] = matches;
+        fetchWeather(`id:${place.id}`, formatPlace(place), controller);
+        return;
+      }
+
+      // More than one match: let the user choose
+      setView({ status: "choose", query: text, options: matches });
+    },
+    [fetchWeather]
+  );
+
+  function choosePlace(place: Suggestion) {
+    const label = formatPlace(place);
+    setQuery(label);
+    fetchWeather(`id:${place.id}`, label);
+  }
 
   function pickCity(city: string) {
     setQuery(city);
-    search(city);
+    handleSearch(city);
   }
 
   // Short text for screen readers, announced whenever the state changes
   const announcement = {
     idle: "",
     loading: view.status === "loading" ? `Loading weather for ${view.query}` : "",
+    choose:
+      view.status === "choose"
+        ? `${view.options.length} places match ${view.query}. Choose one.`
+        : "",
     success: view.status === "success" ? `Showing weather for ${view.data.location.name}` : "",
     "not-found": view.status === "not-found" ? view.message : "",
     error: view.status === "error" ? view.message : "",
@@ -89,7 +161,8 @@ export default function Home() {
       <SearchForm
         value={query}
         onChange={setQuery}
-        onSearch={search}
+        onSearch={handleSearch}
+        onSelectSuggestion={choosePlace}
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
@@ -129,6 +202,32 @@ export default function Home() {
           </div>
         )}
 
+        {view.status === "choose" && (
+          <div className="border-l-4 border-rain pl-4">
+            <h2 className="font-semibold">
+              More than one place matches &ldquo;{view.query}&rdquo;
+            </h2>
+            <p className="mt-1 text-muted">Choose the one you mean.</p>
+            <ul className="mt-3 space-y-2">
+              {view.options.map((place) => {
+                const rest = formatPlace(place).slice(place.name.length + 2);
+                return (
+                  <li key={place.id}>
+                    <button
+                      type="button"
+                      onClick={() => choosePlace(place)}
+                      className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-rain"
+                    >
+                      <span className="font-medium">{place.name}</span>
+                      {rest && <span className="text-muted">, {rest}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {view.status === "not-found" && (
           <div className="border-l-4 border-alert pl-4">
             <h2 className="font-semibold">Location not found</h2>
@@ -142,7 +241,7 @@ export default function Home() {
             <p className="mt-1">{view.message}</p>
             <button
               type="button"
-              onClick={() => search(view.query)}
+              onClick={() => fetchWeather(view.query, view.label)}
               className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
             >
               Try again
@@ -152,6 +251,13 @@ export default function Home() {
 
         {view.status === "success" && <WeatherResults data={view.data} />}
       </section>
+
+      <footer className="mt-16 text-sm text-muted">
+        Weather data by{" "}
+        <a href="https://www.weatherapi.com/" className="underline hover:text-ink">
+          WeatherAPI.com
+        </a>
+      </footer>
     </main>
   );
 }
