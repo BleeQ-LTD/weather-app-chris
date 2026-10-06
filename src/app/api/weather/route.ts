@@ -110,7 +110,7 @@ function parseForecast(data: unknown) {
     },
     forecast: days,
     units: {
-      temperature: "°C",
+      temperature: "Â°C",
       windSpeed: "km/h",
       humidity: "%",
       chanceOfRain: "%",
