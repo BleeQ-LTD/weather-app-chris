@@ -90,6 +90,9 @@ export default function SearchForm({
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
 
       const results = (await response.json()) as Suggestion[];
+      // The text may have changed or the list been dismissed while the body
+      // was downloading; those results no longer belong on screen
+      if (controller.signal.aborted) return;
       cache.current.set(key, results);
       showResults(term, results);
     } catch {
@@ -107,13 +110,13 @@ export default function SearchForm({
     if (validationError) setValidationError("");
     setNoMatchesFor("");
     cancelPending();
+    // Old suggestions belong to the old text: clear them straight away so
+    // Enter or a click can't pick one before the new results arrive
+    setSuggestions([]);
+    closeList();
 
     const term = next.trim();
-    if (term.length < MIN_CHARS) {
-      setSuggestions([]);
-      closeList();
-      return;
-    }
+    if (term.length < MIN_CHARS) return;
 
     debounceTimer.current = setTimeout(() => fetchSuggestions(term), DEBOUNCE_MS);
   }
@@ -150,10 +153,10 @@ export default function SearchForm({
         }
         break;
       case "Escape":
-        if (isOpen) {
-          event.preventDefault();
-          closeList();
-        }
+        if (isOpen) event.preventDefault();
+        // Also cancel a request still in flight so it can't reopen the list
+        cancelPending();
+        closeList();
         break;
     }
   }
@@ -209,7 +212,10 @@ export default function SearchForm({
             value={value}
             onChange={(event) => handleInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            onBlur={closeList}
+            onBlur={() => {
+              cancelPending();
+              closeList();
+            }}
             className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base text-ink aria-invalid:border-alert"
           />
 
