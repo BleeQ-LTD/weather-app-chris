@@ -16,7 +16,7 @@ Where it is used
 WEATHER_API_KEY
 Yes
 Server routes only (/api/weather, /api/search)
-Copy .env.example to .env.local and add your key from weatherapi.com. Never commit .env.local; it is ignored by Git. The variable has no NEXT_PUBLIC_ prefix, so it is never sent to the browser.
+Setup: copy .env.example to .env.local (cp .env.example .env.local) and replace the placeholder with your own key from weatherapi.com. .env.local is ignored by Git, so your key is never committed; only the placeholder file .env.example is tracked. The variable has no NEXT_PUBLIC_ prefix, so it is never sent to the browser.
 Run the application
 npm run dev
 Open http://localhost:3000. Restart the server after changing .env
