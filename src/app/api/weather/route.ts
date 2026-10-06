@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isNumber, isRecord, isString, readJsonBody } from "@/lib/upstream";
 
 const WEATHER_API_BASE = "https://api.weatherapi.com/v1";
 const FORECAST_DAYS = 3;
@@ -20,45 +21,101 @@ function errorResponse(code: ErrorCode, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
-// ---- The parts of WeatherAPI's response we actually use ----
+// ---- Checking the parts of WeatherAPI's response we actually use ----
 
-interface WeatherApiCondition {
+interface Condition {
   text: string;
   icon: string;
-  code: number;
 }
 
-interface WeatherApiResponse {
-  location: {
-    name: string;
-    region: string;
-    country: string;
-    localtime: string;
-    tz_id: string;
-  };
-  current: {
-    last_updated: string;
-    temp_c: number;
-    feelslike_c: number;
-    humidity: number;
-    wind_kph: number;
-    condition: WeatherApiCondition;
-  };
-  forecast: {
-    forecastday: {
-      date: string;
-      day: {
-        maxtemp_c: number;
-        mintemp_c: number;
-        daily_chance_of_rain: number;
-        condition: WeatherApiCondition;
-      };
-    }[];
-  };
+// Returns the condition's text and icon, or null if either is missing
+function parseCondition(value: unknown): Condition | null {
+  if (!isRecord(value) || !isString(value.text) || !isString(value.icon)) return null;
+  return { text: value.text, icon: value.icon };
 }
 
-interface WeatherApiError {
-  error?: { code?: number; message?: string };
+// Checks every field we use, then builds our own response shape.
+// Returns null if anything is missing or the wrong type.
+function parseForecast(data: unknown) {
+  if (!isRecord(data)) return null;
+  const { location, current, forecast } = data;
+
+  if (
+    !isRecord(location) ||
+    !isString(location.name) ||
+    !isString(location.region) ||
+    !isString(location.country) ||
+    !isString(location.localtime) ||
+    !isString(location.tz_id)
+  ) {
+    return null;
+  }
+
+  const currentCondition = isRecord(current) ? parseCondition(current.condition) : null;
+  if (
+    !isRecord(current) ||
+    !currentCondition ||
+    !isString(current.last_updated) ||
+    !isNumber(current.temp_c) ||
+    !isNumber(current.feelslike_c) ||
+    !isNumber(current.humidity) ||
+    !isNumber(current.wind_kph)
+  ) {
+    return null;
+  }
+
+  if (!isRecord(forecast) || !Array.isArray(forecast.forecastday)) return null;
+
+  const days = [];
+  for (const entry of forecast.forecastday) {
+    const day = isRecord(entry) && isRecord(entry.day) ? entry.day : null;
+    const condition = day ? parseCondition(day.condition) : null;
+    if (
+      !isRecord(entry) ||
+      !day ||
+      !condition ||
+      !isString(entry.date) ||
+      !isNumber(day.maxtemp_c) ||
+      !isNumber(day.mintemp_c) ||
+      !isNumber(day.daily_chance_of_rain)
+    ) {
+      return null;
+    }
+    days.push({
+      date: entry.date,
+      high: day.maxtemp_c,
+      low: day.mintemp_c,
+      chanceOfRain: day.daily_chance_of_rain,
+      condition: condition.text,
+      icon: toHttps(condition.icon),
+    });
+  }
+
+  return {
+    location: {
+      name: location.name,
+      region: location.region,
+      country: location.country,
+      localTime: location.localtime,
+      timezone: location.tz_id,
+    },
+    current: {
+      updatedAt: current.last_updated,
+      temperature: current.temp_c,
+      feelsLike: current.feelslike_c,
+      humidity: current.humidity,
+      windSpeed: current.wind_kph,
+      condition: currentCondition.text,
+      icon: toHttps(currentCondition.icon),
+    },
+    forecast: days,
+    units: {
+      temperature: "°C",
+      windSpeed: "km/h",
+      humidity: "%",
+      chanceOfRain: "%",
+    },
+  };
 }
 
 // WeatherAPI returns icon URLs like "//cdn.weatherapi.com/..." with no protocol
@@ -119,10 +176,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 4. Translate WeatherAPI errors into our own error codes
+  // 4. Read the body safely: it may be cut off, not JSON, or the wrong shape
+  const body = await readJsonBody(upstream);
+  if (!body.ok) {
+    console.error(`[weather] Could not read WeatherAPI response: ${body.reason}`);
+    return body.reason === "malformed"
+      ? errorResponse(
+          "UPSTREAM_ERROR",
+          "The weather service had a problem. Please try again shortly.",
+          502
+        )
+      : errorResponse(
+          "SERVICE_UNAVAILABLE",
+          "Couldn't reach the weather service. Check your connection and try again.",
+          503
+        );
+  }
+
+  // 5. Translate WeatherAPI errors into our own error codes
   if (!upstream.ok) {
-    const body = (await upstream.json().catch(() => null)) as WeatherApiError | null;
-    const upstreamCode = body?.error?.code;
+    const upstreamError = isRecord(body.data) && isRecord(body.data.error) ? body.data.error : null;
+    const upstreamCode = upstreamError && isNumber(upstreamError.code) ? upstreamError.code : undefined;
 
     if (upstreamCode === WEATHERAPI_LOCATION_NOT_FOUND) {
       return errorResponse(
@@ -134,7 +208,7 @@ export async function GET(request: NextRequest) {
 
     // Key problems, quota exceeded, WeatherAPI outages: log details, show a generic message
     console.error(
-      `[weather] WeatherAPI error: status=${upstream.status} code=${upstreamCode} message=${body?.error?.message}`
+      `[weather] WeatherAPI error: status=${upstream.status} code=${upstreamCode}`
     );
     return errorResponse(
       "UPSTREAM_ERROR",
@@ -143,39 +217,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 5. Reshape into our own clean format for the UI
-  const data = (await upstream.json()) as WeatherApiResponse;
+  // 6. Check the shape and reshape into our own clean format for the UI
+  const result = parseForecast(body.data);
+  if (!result) {
+    console.error("[weather] WeatherAPI response was missing expected fields");
+    return errorResponse(
+      "UPSTREAM_ERROR",
+      "The weather service had a problem. Please try again shortly.",
+      502
+    );
+  }
 
-  return NextResponse.json({
-    location: {
-      name: data.location.name,
-      region: data.location.region,
-      country: data.location.country,
-      localTime: data.location.localtime,
-      timezone: data.location.tz_id,
-    },
-    current: {
-      updatedAt: data.current.last_updated,
-      temperature: data.current.temp_c,
-      feelsLike: data.current.feelslike_c,
-      humidity: data.current.humidity,
-      windSpeed: data.current.wind_kph,
-      condition: data.current.condition.text,
-      icon: toHttps(data.current.condition.icon),
-    },
-    forecast: data.forecast.forecastday.map((day) => ({
-      date: day.date,
-      high: day.day.maxtemp_c,
-      low: day.day.mintemp_c,
-      chanceOfRain: day.day.daily_chance_of_rain,
-      condition: day.day.condition.text,
-      icon: toHttps(day.day.condition.icon),
-    })),
-    units: {
-      temperature: "Â°C",
-      windSpeed: "km/h",
-      humidity: "%",
-      chanceOfRain: "%",
-    },
-  });
+  return NextResponse.json(result);
 }
