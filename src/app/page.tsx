@@ -33,6 +33,13 @@ export default function Home() {
     return controller;
   }
 
+  // True only while this request is still the newest one. Checked after every
+  // await, because a request can be replaced while its response is arriving
+  // (even after fetch() resolved, reading the body can still be in progress).
+  function isCurrent(controller: AbortController) {
+    return activeRequest.current === controller && !controller.signal.aborted;
+  }
+
   // Step 2: get the weather.
   // apiQuery is what we send ("Lagos" or "id:12345");
   // label is what the user sees ("Lagos, Nigeria")
@@ -45,7 +52,10 @@ export default function Home() {
           `/api/weather?q=${encodeURIComponent(apiQuery)}`,
           { signal: controller.signal }
         );
+        if (!isCurrent(controller)) return;
+
         const body = await response.json().catch(() => null);
+        if (!isCurrent(controller)) return; // replaced while the body was arriving
 
         if (response.ok && body) {
           setView({ status: "success", data: body as WeatherData });
@@ -67,7 +77,7 @@ export default function Home() {
           label,
         });
       } catch {
-        if (controller.signal.aborted) return; // replaced by a newer search
+        if (!isCurrent(controller)) return; // replaced by a newer search
         setView({
           status: "error",
           message: "Couldn't connect. Check your internet connection and try again.",
@@ -96,10 +106,12 @@ export default function Home() {
         const response = await fetch(`/api/search?q=${encodeURIComponent(text)}`, {
           signal: controller.signal,
         });
+        if (!isCurrent(controller)) return;
         if (!response.ok) throw new Error(`Search failed: ${response.status}`);
         matches = (await response.json()) as Suggestion[];
+        if (!isCurrent(controller)) return; // replaced while the body was arriving
       } catch {
-        if (controller.signal.aborted) return;
+        if (!isCurrent(controller)) return;
         // If the search check fails, fall back to the old behaviour:
         // let WeatherAPI pick its best match for the typed text
         fetchWeather(text, text, controller);

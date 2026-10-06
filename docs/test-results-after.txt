@@ -1,0 +1,21 @@
+
+> weather-app-chris@0.1.0 test
+> vitest run
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+[33mBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored.[39m The following esbuild options were set: `{ jsx: 'automatic' }`
+
+ RUN  v5.0.3 C:/Users/chris/Desktop/Lock-In/weather-app-chris
+
+
+ Test Files  4 passed (4)
+      Tests  16 passed (16)
+   Start at  10:34:55
+   Duration  7.37s (environment 45%, tests 25%, setup 21%, import 5%, transform 2%)
+
+Environment  jsdom was created 4 times · 7.57s total, 45% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
