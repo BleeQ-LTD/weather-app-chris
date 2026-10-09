@@ -82,6 +82,17 @@ export interface Suggestion {
   country: string;
 }
 
+// Does what the user typed actually appear in this place's name, region or
+// country? "edo" does not match "Balikesir Koca Seyit Airport, Edremit, Turkey",
+// but "lagos nigeria" matches "Lagos, Nigeria". Ignores case and accents.
+export function matchesPlace(text: string, place: Suggestion): boolean {
+  const normalise = (value: string) =>
+    value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const haystack = normalise(`${place.name} ${place.region} ${place.country}`);
+  const words = normalise(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return words.length > 0 && words.every((word) => haystack.includes(word));
+}
+
 // "Lagos, Lagos, Nigeria" -> "Lagos, Nigeria" (skips empty or repeated parts)
 export function formatPlace({ name, region, country }: Suggestion): string {
   return [name, region && region !== name ? region : null, country]
