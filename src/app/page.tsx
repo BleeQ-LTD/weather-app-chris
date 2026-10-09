@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
-import { formatPlace } from "@/lib/weather";
+import { formatPlace, matchesPlace } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 
 // Every screen the app can be on. Only one is possible at a time.
@@ -127,13 +127,16 @@ export default function Home() {
         return;
       }
 
-      if (matches.length === 1) {
+      // One match that really is what was typed: go straight to its weather.
+      // A single match that looks unrelated (like "edo" -> an airport in
+      // Turkey) falls through to the "did you mean" screen instead.
+      if (matches.length === 1 && matchesPlace(text, matches[0])) {
         const [place] = matches;
         fetchWeather(`id:${place.id}`, formatPlace(place), controller);
         return;
       }
 
-      // More than one match: let the user choose
+      // More than one match, or one doubtful match: let the user choose
       setView({ status: "choose", query: text, options: matches });
     },
     [fetchWeather]
@@ -156,7 +159,9 @@ export default function Home() {
     loading: view.status === "loading" ? `Loading weather for ${view.query}` : "",
     choose:
       view.status === "choose"
-        ? `${view.options.length} places match ${view.query}. Choose one.`
+        ? view.options.length === 1
+          ? `No exact match for ${view.query}. Did you mean ${formatPlace(view.options[0])}?`
+          : `${view.options.length} places match ${view.query}. Choose one.`
         : "",
     success: view.status === "success" ? `Showing weather for ${view.data.location.name}` : "",
     "not-found": view.status === "not-found" ? view.message : "",
@@ -217,9 +222,15 @@ export default function Home() {
         {view.status === "choose" && (
           <div className="border-l-4 border-rain pl-4">
             <h2 className="font-semibold">
-              More than one place matches &ldquo;{view.query}&rdquo;
+              {view.options.length === 1
+                ? <>No exact match for &ldquo;{view.query}&rdquo;</>
+                : <>More than one place matches &ldquo;{view.query}&rdquo;</>}
             </h2>
-            <p className="mt-1 text-muted">Choose the one you mean.</p>
+            <p className="mt-1 text-muted">
+              {view.options.length === 1
+                ? "Did you mean this place? Or add a country, for example Edo, Nigeria."
+                : "Choose the one you mean."}
+            </p>
             <ul className="mt-3 space-y-2">
               {view.options.map((place) => {
                 const rest = formatPlace(place).slice(place.name.length + 2);
