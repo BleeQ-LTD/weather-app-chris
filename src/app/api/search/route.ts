@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isNumber, isRecord, isString, readJsonBody } from "@/lib/upstream";
 
 const WEATHER_API_BASE = "https://api.weatherapi.com/v1";
 const REQUEST_TIMEOUT_MS = 5000;
 const MIN_QUERY_LENGTH = 2;
 const MAX_QUERY_LENGTH = 100;
 
-// The fields we use from WeatherAPI's Search API
-interface WeatherApiSearchResult {
+interface Place {
   id: number;
   name: string;
   region: string;
@@ -15,6 +15,16 @@ interface WeatherApiSearchResult {
 
 function errorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
+}
+
+// Keeps only the four fields we use, and only if each has the right type
+function toPlace(item: unknown): Place | null {
+  if (!isRecord(item)) return null;
+  const { id, name, region, country } = item;
+  if (!isNumber(id) || !isString(name) || !isString(region) || !isString(country)) {
+    return null;
+  }
+  return { id, name, region, country };
 }
 
 // GET /api/search?q=la  ->  [{ id, name, region, country }, ...]
@@ -39,6 +49,7 @@ export async function GET(request: NextRequest) {
   url.searchParams.set("key", apiKey);
   url.searchParams.set("q", query);
 
+  // The timeout also covers reading the body below
   let upstream: Response;
   try {
     upstream = await fetch(url, {
@@ -52,15 +63,25 @@ export async function GET(request: NextRequest) {
     return errorResponse("SERVICE_UNAVAILABLE", "Search is not available.", 503);
   }
 
+  const body = await readJsonBody(upstream);
+  if (!body.ok) {
+    console.error(`[search] Could not read WeatherAPI response: ${body.reason}`);
+    return body.reason === "malformed"
+      ? errorResponse("UPSTREAM_ERROR", "Search is not available.", 502)
+      : errorResponse("SERVICE_UNAVAILABLE", "Search is not available.", 503);
+  }
+
   if (!upstream.ok) {
     console.error(`[search] WeatherAPI error: status=${upstream.status}`);
     return errorResponse("UPSTREAM_ERROR", "Search is not available.", 502);
   }
 
-  const results = (await upstream.json()) as WeatherApiSearchResult[];
+  if (!Array.isArray(body.data)) {
+    console.error("[search] WeatherAPI returned something other than a list");
+    return errorResponse("UPSTREAM_ERROR", "Search is not available.", 502);
+  }
 
   // No matches is a normal result: WeatherAPI returns an empty array
-  return NextResponse.json(
-    results.map(({ id, name, region, country }) => ({ id, name, region, country }))
-  );
+  const places = body.data.map(toPlace).filter((place): place is Place => place !== null);
+  return NextResponse.json(places);
 }

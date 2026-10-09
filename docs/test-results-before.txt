@@ -1,0 +1,224 @@
+
+> weather-app-chris@0.1.0 test
+> vitest run
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+[33mBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored.[39m The following esbuild options were set: `{ jsx: 'automatic' }`
+
+ RUN  v5.0.3 C:/Users/chris/Desktop/Lock-In/weather-app-chris
+
+ ❯ tests/api/weather-route.test.ts (6 tests | 3 failed) 44ms
+   ❯ GET /api/weather (6)
+     × returns 502 for a malformed JSON body with status 200 7ms
+     × returns 502 for valid JSON that is missing required fields 6ms
+     × returns 503 when reading the body times out 3ms
+ ❯ tests/api/search-route.test.ts (5 tests | 4 failed) 35ms
+   ❯ GET /api/search (5)
+     × returns 502 for malformed JSON 6ms
+     × returns 502 when the JSON is not an array 5ms
+     × drops entries with missing fields instead of crashing 2ms
+     × returns 503 when reading the body times out 2ms
+ ❯ tests/ui/page.test.tsx (2 tests | 2 failed) 1733ms
+   ❯ Home page request handling (2)
+     × ignores a cancelled weather request whose body fails afterwards 1028ms
+     × ignores a superseded search whose body arrives late 701ms
+ ❯ tests/ui/search-form.test.tsx (3 tests | 3 failed) 2116ms
+   ❯ SearchForm suggestions (3)
+     × does not pick a stale suggestion after the text changes 859ms
+     × stays closed when suggestions arrive after Escape 609ms
+     × stays closed when suggestions arrive after the input loses focus 643ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/api/search-route.test.ts > GET /api/search > returns 502 for malformed JSON
+SyntaxError: Unexpected token '<', "<html>" is not valid JSON
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/api/search-route.test.ts > GET /api/search > returns 502 when the JSON is not an array
+TypeError: results.map is not a function
+ ❯ GET src/app/api/search/route.ts:64:13
+     62|   // No matches is a normal result: WeatherAPI returns an empty array
+     63|   return NextResponse.json(
+     64|     results.map(({ id, name, region, country }) => ({ id, name, region…
+       |             ^
+     65|   );
+     66| }
+ ❯ tests/api/search-route.test.ts:42:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/api/search-route.test.ts > GET /api/search > drops entries with missing fields instead of crashing
+TypeError: Cannot destructure property 'id' of 'object null' as it is null.
+ ❯ src/app/api/search/route.ts:64:20
+     62|   // No matches is a normal result: WeatherAPI returns an empty array
+     63|   return NextResponse.json(
+     64|     results.map(({ id, name, region, country }) => ({ id, name, region…
+       |                    ^
+     65|   );
+     66| }
+ ❯ GET src/app/api/search/route.ts:64:13
+ ❯ tests/api/search-route.test.ts:58:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/api/search-route.test.ts > GET /api/search > returns 503 when reading the body times out
+TimeoutError: The operation timed out.
+ ❯ timeoutError tests/helpers.ts:24:10
+     22|
+     23| export function timeoutError() {
+     24|   return new DOMException("The operation timed out.", "TimeoutError");
+       |          ^
+     25| }
+     26|
+ ❯ tests/api/search-route.test.ts:67:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/api/weather-route.test.ts > GET /api/weather > returns 502 for a malformed JSON body with status 200
+SyntaxError: Unexpected token '<', "<html>oops" is not valid JSON
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/api/weather-route.test.ts > GET /api/weather > returns 502 for valid JSON that is missing required fields
+TypeError: Cannot read properties of undefined (reading 'last_updated')
+ ❯ GET src/app/api/weather/route.ts:158:31
+    156|     },
+    157|     current: {
+    158|       updatedAt: data.current.last_updated,
+       |                               ^
+    159|       temperature: data.current.temp_c,
+    160|       feelsLike: data.current.feelslike_c,
+ ❯ tests/api/weather-route.test.ts:69:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/api/weather-route.test.ts > GET /api/weather > returns 503 when reading the body times out
+TimeoutError: The operation timed out.
+ ❯ timeoutError tests/helpers.ts:24:10
+     22|
+     23| export function timeoutError() {
+     24|   return new DOMException("The operation timed out.", "TimeoutError");
+       |          ^
+     25| }
+     26|
+ ❯ tests/api/weather-route.test.ts:76:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/ui/page.test.tsx > Home page request handling > ignores a cancelled weather request whose body fails afterwards
+Error: [2mexpect([22m[31melement[39m[2m).not.toBeInTheDocument()[22m
+
+[31mexpected document not to contain element, found <h2
+  class="font-semibold"
+>
+  Weather unavailable
+</h2> instead[39m
+ ❯ tests/ui/page.test.tsx:70:60
+     68|
+     69|     const section = resultsSection(container);
+     70|     expect(section.queryByText("Weather unavailable")).not.toBeInTheDo…
+       |                                                            ^
+     71|     expect(section.getByText(/Loading weather for Abuja, Nigeria/)).to…
+     72|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  tests/ui/page.test.tsx > Home page request handling > ignores a superseded search whose body arrives late
+AssertionError: expected [ '/api/weather?q=id%3A2', …(1) ] to deeply equal [ '/api/weather?q=id%3A2' ]
+
+- Expected
++ Received
+
+  [
+    "/api/weather?q=id%3A2",
++   "/api/weather?q=id%3A1",
+  ]
+
+ ❯ tests/ui/page.test.tsx:96:26
+     94|       .map(([url]) => url)
+     95|       .filter((url) => url.startsWith("/api/weather"));
+     96|     expect(weatherCalls).toEqual(["/api/weather?q=id%3A2"]);
+       |                          ^
+     97|     expect(resultsSection(container).getByText(/Loading weather for Ab…
+     98|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  tests/ui/search-form.test.tsx > SearchForm suggestions > does not pick a stale suggestion after the text changes
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Object {
+        "country": "Nigeria",
+        "id": 1,
+        "name": "Lagos",
+        "region": "Lagos",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ tests/ui/search-form.test.tsx:64:36
+     62|     await user.keyboard("{Enter}");
+     63|
+     64|     expect(onSelectSuggestion).not.toHaveBeenCalled();
+       |                                    ^
+     65|     expect(onSearch).toHaveBeenCalledWith("lon");
+     66|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL  tests/ui/search-form.test.tsx > SearchForm suggestions > stays closed when suggestions arrive after Escape
+AssertionError: expected [ …(1) ] to have a length of +0 but got 1
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/ui/search-form.test.tsx:82:45
+     80|     });
+     81|
+     82|     expect(screen.queryAllByRole("option")).toHaveLength(0);
+       |                                             ^
+     83|     expect(input).toHaveAttribute("aria-expanded", "false");
+     84|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+ FAIL  tests/ui/search-form.test.tsx > SearchForm suggestions > stays closed when suggestions arrive after the input loses focus
+AssertionError: expected [ …(1) ] to have a length of +0 but got 1
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/ui/search-form.test.tsx:100:45
+     98|     });
+     99|
+    100|     expect(screen.queryAllByRole("option")).toHaveLength(0);
+       |                                             ^
+    101|     expect(input).toHaveAttribute("aria-expanded", "false");
+    102|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/12]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  12 failed | 4 passed (16)
+   Start at  10:32:15
+   Duration  5.32s (environment 38%, tests 35%, setup 18%, import 6%, transform 2%)
+
+Environment  jsdom was created 4 times · 4.20s total, 38% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
