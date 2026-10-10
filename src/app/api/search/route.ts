@@ -107,6 +107,10 @@ export async function GET(request: NextRequest) {
   url.searchParams.set("format", "json");
   url.searchParams.set("lang", "en");
   url.searchParams.set("limit", String(UPSTREAM_LIMIT));
+     // Without this, Geoapify ranks results by the caller's country (its default
+   // "countrycode:auto"). On Vercel the caller is the server, not the user,
+   // so Nigerian places dropped out. Prefer Nigeria; other countries still appear.
+   url.searchParams.set("bias", "countrycode:ng");
   url.searchParams.set("apiKey", apiKey);
 
   // The timeout also covers reading the body below
