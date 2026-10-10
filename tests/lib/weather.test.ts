@@ -3,12 +3,15 @@ import { matchesPlace } from "@/lib/weather";
 import type { Suggestion } from "@/lib/weather";
 
 const airport: Suggestion = {
-  id: 9005631,
+  id: "9005631",
   name: "Balikesir Koca Seyit Airport",
   region: "Edremit",
   country: "Turkey",
+  lat: 39.5546,
+  lon: 27.0138,
+  kind: "area",
 };
-const lagos: Suggestion = { id: 1, name: "Lagos", region: "Lagos", country: "Nigeria" };
+const lagos: Suggestion = { id: "1", name: "Lagos", region: "Lagos", country: "Nigeria", lat: 6.4541, lon: 3.3947, kind: "city" };
 
 describe("matchesPlace", () => {
   it("rejects a place that does not contain what was typed", () => {
@@ -30,7 +33,7 @@ describe("matchesPlace", () => {
   });
 
   it("ignores accents and case", () => {
-    const place = { id: 2, name: "São Paulo", region: "São Paulo", country: "Brazil" };
+    const place = { id: "3", name: "São Paulo", region: "São Paulo", country: "Brazil", lat: -23.55, lon: -46.63, kind: "city" as const };
     expect(matchesPlace("sao paulo", place)).toBe(true);
   });
 

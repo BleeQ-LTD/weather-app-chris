@@ -6,7 +6,7 @@ import SearchForm from "@/components/SearchForm";
 import type { Suggestion } from "@/lib/weather";
 import { deferred, jsonResponse } from "../helpers";
 
-const lagos: Suggestion = { id: 1, name: "Lagos", region: "Lagos", country: "Nigeria" };
+const lagos: Suggestion = { id: "1", name: "Lagos", region: "Lagos", country: "Nigeria", lat: 6.4541, lon: 3.3947, kind: "city" };
 
 function Harness({
   onSearch,

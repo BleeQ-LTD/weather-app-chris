@@ -75,11 +75,28 @@ export function formatTemp(celsius: number): string {
 
 // ---- Search suggestions (from /api/search) ----
 
+export type PlaceKind = "city" | "area" | "state" | "country";
+
 export interface Suggestion {
-  id: number;
+  id: string;
   name: string;
   region: string;
   country: string;
+  lat: number;
+  lon: number;
+  kind: PlaceKind;
+}
+
+// What we send to /api/weather for a chosen place. Coordinates, because the
+// search provider (Geoapify) and the weather provider (WeatherAPI) use
+// different place IDs. WeatherAPI accepts "lat,lon" directly.
+export function weatherQueryFor(place: Suggestion): string {
+  return `${place.lat.toFixed(4)},${place.lon.toFixed(4)}`;
+}
+
+// Short word shown next to non-city results, e.g. "Edo, Nigeria · State"
+export function kindLabel(kind: PlaceKind): string {
+  return { city: "", area: "Area", state: "State", country: "Country" }[kind];
 }
 
 // Does what the user typed actually appear in this place's name, region or

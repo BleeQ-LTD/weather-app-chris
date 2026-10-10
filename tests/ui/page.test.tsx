@@ -5,8 +5,8 @@ import Home from "@/app/page";
 import type { Suggestion } from "@/lib/weather";
 import { abortError, deferred, jsonResponse } from "../helpers";
 
-const lagos: Suggestion = { id: 1, name: "Lagos", region: "Lagos", country: "Nigeria" };
-const abuja: Suggestion = { id: 2, name: "Abuja", region: "Abuja", country: "Nigeria" };
+const lagos: Suggestion = { id: "1", name: "Lagos", region: "Lagos", country: "Nigeria", lat: 6.4541, lon: 3.3947, kind: "city" };
+const abuja: Suggestion = { id: "2", name: "Abuja", region: "Abuja", country: "Nigeria", lat: 9.0643, lon: 7.4893, kind: "city" };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -23,8 +23,8 @@ function mockApi(handlers: {
       if (q === "Abu") return Promise.resolve(jsonResponse([abuja]));
     }
     if (url.startsWith("/api/weather")) {
-      if (q === "id:1") return Promise.resolve(handlers.lagosWeather());
-      if (q === "id:2") return new Promise<Response>(() => {}); // Abuja never finishes
+      if (q === "6.4541,3.3947") return Promise.resolve(handlers.lagosWeather());
+      if (q === "9.0643,7.4893") return new Promise<Response>(() => {}); // Abuja never finishes
     }
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
@@ -93,7 +93,7 @@ describe("Home page request handling", () => {
     const weatherCalls = fetchMock.mock.calls
       .map(([url]) => url)
       .filter((url) => url.startsWith("/api/weather"));
-    expect(weatherCalls).toEqual(["/api/weather?q=id%3A2"]);
+    expect(weatherCalls).toEqual(["/api/weather?q=9.0643%2C7.4893"]);
     expect(resultsSection(container).getByText(/Loading weather for Abuja, Nigeria/)).toBeInTheDocument();
   });
 });

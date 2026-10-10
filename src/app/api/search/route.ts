@@ -1,33 +1,90 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PlaceKind, Suggestion } from "@/lib/weather";
 import { isNumber, isRecord, isString, readJsonBody } from "@/lib/upstream";
 
-const WEATHER_API_BASE = "https://api.weatherapi.com/v1";
+// Place search uses Geoapify (OpenStreetMap data), not WeatherAPI.
+// WeatherAPI's own search only knows cities and towns, so states such as
+// "Edo, Nigeria" never appeared. Geoapify also returns states and districts.
+const GEOAPIFY_AUTOCOMPLETE = "https://api.geoapify.com/v1/geocode/autocomplete";
 const REQUEST_TIMEOUT_MS = 5000;
 const MIN_QUERY_LENGTH = 2;
 const MAX_QUERY_LENGTH = 100;
+const UPSTREAM_LIMIT = 10; // ask for more than we show, because some get filtered out
+const MAX_RESULTS = 6;
 
-interface Place {
-  id: number;
-  name: string;
-  region: string;
-  country: string;
-}
+// Geoapify result types we treat as "places you can get weather for".
+// Streets, buildings, businesses and postcodes are dropped.
+const KIND_BY_RESULT_TYPE: Record<string, PlaceKind> = {
+  city: "city",
+  suburb: "area",
+  district: "area",
+  county: "area",
+  state: "state",
+  country: "country",
+};
 
 function errorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
-// Keeps only the four fields we use, and only if each has the right type
-function toPlace(item: unknown): Place | null {
-  if (!isRecord(item)) return null;
-  const { id, name, region, country } = item;
-  if (!isNumber(id) || !isString(name) || !isString(region) || !isString(country)) {
-    return null;
-  }
-  return { id, name, region, country };
+// "Edo State" -> "Edo", so states read like "Edo, Nigeria" (as cities do)
+function stripStateSuffix(name: string) {
+  return name.replace(/\s+State$/i, "").trim();
 }
 
-// GET /api/search?q=la  ->  [{ id, name, region, country }, ...]
+// Turns one Geoapify result into our Suggestion shape, or null if it isn't a
+// place we can show (wrong type, or missing fields).
+function toSuggestion(item: unknown): Suggestion | null {
+  if (!isRecord(item)) return null;
+  const { result_type, lat, lon, country, state, city, county, name, place_id } = item;
+
+  if (!isString(result_type) || !isNumber(lat) || !isNumber(lon) || !isString(country)) {
+    return null;
+  }
+  const kind = KIND_BY_RESULT_TYPE[result_type];
+  if (!kind) return null;
+
+  const stateName = isString(state) ? stripStateSuffix(state) : "";
+  let placeName = "";
+  let region = "";
+
+  if (kind === "state") {
+    placeName = stateName;
+  } else if (kind === "country") {
+    placeName = country;
+  } else if (kind === "city") {
+    placeName = isString(city) ? city : isString(name) ? name : "";
+    region = stateName;
+  } else {
+    placeName = isString(name) ? name : isString(county) ? county : "";
+    region = stateName;
+  }
+  if (!placeName) return null;
+
+  return {
+    id: isString(place_id) ? place_id : `${lat},${lon}`,
+    name: placeName,
+    region: kind === "country" ? "" : region,
+    country: kind === "country" ? "" : country,
+    lat,
+    lon,
+    kind,
+  };
+}
+
+// Same label and kind = same place for the user, so show it once
+// (e.g. "Lagos Island, Lagos, Nigeria" appearing twice).
+function dedupe(places: Suggestion[]) {
+  const seen = new Set<string>();
+  return places.filter((place) => {
+    const key = `${place.kind}|${place.name}|${place.region}|${place.country}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// GET /api/search?q=edo  ->  [{ id, name, region, country, lat, lon, kind }, ...]
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
@@ -39,15 +96,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const apiKey = process.env.WEATHER_API_KEY;
+  const apiKey = process.env.GEOAPIFY_API_KEY;
   if (!apiKey) {
-    console.error("[search] WEATHER_API_KEY is not set");
+    console.error("[search] GEOAPIFY_API_KEY is not set");
     return errorResponse("SERVICE_UNAVAILABLE", "Search is not available.", 500);
   }
 
-  const url = new URL(`${WEATHER_API_BASE}/search.json`);
-  url.searchParams.set("key", apiKey);
-  url.searchParams.set("q", query);
+  const url = new URL(GEOAPIFY_AUTOCOMPLETE);
+  url.searchParams.set("text", query);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("lang", "en");
+  url.searchParams.set("limit", String(UPSTREAM_LIMIT));
+  url.searchParams.set("apiKey", apiKey);
 
   // The timeout also covers reading the body below
   let upstream: Response;
@@ -59,29 +119,33 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     // Never log `url` — it contains the API key
     const reason = err instanceof Error ? err.name : "UnknownError";
-    console.error(`[search] Request to WeatherAPI failed: ${reason}`);
+    console.error(`[search] Request to Geoapify failed: ${reason}`);
     return errorResponse("SERVICE_UNAVAILABLE", "Search is not available.", 503);
   }
 
   const body = await readJsonBody(upstream);
   if (!body.ok) {
-    console.error(`[search] Could not read WeatherAPI response: ${body.reason}`);
+    console.error(`[search] Could not read Geoapify response: ${body.reason}`);
     return body.reason === "malformed"
       ? errorResponse("UPSTREAM_ERROR", "Search is not available.", 502)
       : errorResponse("SERVICE_UNAVAILABLE", "Search is not available.", 503);
   }
 
   if (!upstream.ok) {
-    console.error(`[search] WeatherAPI error: status=${upstream.status}`);
+    console.error(`[search] Geoapify error: status=${upstream.status}`);
     return errorResponse("UPSTREAM_ERROR", "Search is not available.", 502);
   }
 
-  if (!Array.isArray(body.data)) {
-    console.error("[search] WeatherAPI returned something other than a list");
+  const results = isRecord(body.data) ? body.data.results : undefined;
+  if (!Array.isArray(results)) {
+    console.error("[search] Geoapify response had no results list");
     return errorResponse("UPSTREAM_ERROR", "Search is not available.", 502);
   }
 
-  // No matches is a normal result: WeatherAPI returns an empty array
-  const places = body.data.map(toPlace).filter((place): place is Place => place !== null);
+  // No matches is a normal result: an empty list
+  const places = dedupe(
+    results.map(toSuggestion).filter((place): place is Suggestion => place !== null)
+  ).slice(0, MAX_RESULTS);
+
   return NextResponse.json(places);
 }

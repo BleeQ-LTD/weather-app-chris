@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Suggestion, formatPlace } from "@/lib/weather";
+import { Suggestion, formatPlace, kindLabel } from "@/lib/weather";
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
@@ -229,6 +229,7 @@ export default function SearchForm({
             {suggestions.map((suggestion, index) => {
               const isActive = index === activeIndex;
               const rest = formatPlace(suggestion).slice(suggestion.name.length + 2);
+              const tag = kindLabel(suggestion.kind);
               return (
                 <li
                   key={suggestion.id}
@@ -246,6 +247,11 @@ export default function SearchForm({
                   {rest && (
                     <span className={isActive ? "text-white/85" : "text-muted"}>
                       , {rest}
+                    </span>
+                  )}
+                  {tag && (
+                    <span className={`ml-2 text-sm ${isActive ? "text-white/85" : "text-muted"}`}>
+                      · {tag}
                     </span>
                   )}
                 </li>
