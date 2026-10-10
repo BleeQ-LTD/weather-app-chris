@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
-import { formatPlace, matchesPlace } from "@/lib/weather";
+import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 
 // Every screen the app can be on. Only one is possible at a time.
@@ -13,7 +13,7 @@ type ViewState =
   | { status: "choose"; query: string; options: Suggestion[] }
   | { status: "success"; data: WeatherData }
   | { status: "not-found"; message: string }
-  | { status: "error"; message: string; query: string; label: string };
+  | { status: "error"; message: string; query: string; label: string; place?: Suggestion };
 
 const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
@@ -41,10 +41,17 @@ export default function Home() {
   }
 
   // Step 2: get the weather.
-  // apiQuery is what we send ("Lagos" or "id:12345");
-  // label is what the user sees ("Lagos, Nigeria")
+  // apiQuery is what we send ("Lagos" or "6.3350,5.6037");
+  // label is what the user sees while loading ("Edo, Nigeria");
+  // place is the place the user picked, if any. Its name is shown instead of
+  // WeatherAPI's nearest-town name, so choosing "Edo, Nigeria" shows "Edo".
   const fetchWeather = useCallback(
-    async (apiQuery: string, label: string, controller = startRequest()) => {
+    async (
+      apiQuery: string,
+      label: string,
+      controller = startRequest(),
+      place?: Suggestion
+    ) => {
       setView({ status: "loading", query: label });
 
       try {
@@ -58,7 +65,21 @@ export default function Home() {
         if (!isCurrent(controller)) return; // replaced while the body was arriving
 
         if (response.ok && body) {
-          setView({ status: "success", data: body as WeatherData });
+          const data = body as WeatherData;
+          setView({
+            status: "success",
+            data: place
+              ? {
+                  ...data,
+                  location: {
+                    ...data.location,
+                    name: place.name,
+                    region: place.region,
+                    country: place.country,
+                  },
+                }
+              : data,
+          });
           return;
         }
 
@@ -75,6 +96,7 @@ export default function Home() {
           message: error?.message ?? "The weather service had a problem. Try again.",
           query: apiQuery,
           label,
+          place,
         });
       } catch {
         if (!isCurrent(controller)) return; // replaced by a newer search
@@ -83,6 +105,7 @@ export default function Home() {
           message: "Couldn't connect. Check your internet connection and try again.",
           query: apiQuery,
           label,
+          place,
         });
       }
     },
@@ -132,7 +155,7 @@ export default function Home() {
       // Turkey) falls through to the "did you mean" screen instead.
       if (matches.length === 1 && matchesPlace(text, matches[0])) {
         const [place] = matches;
-        fetchWeather(`id:${place.id}`, formatPlace(place), controller);
+        fetchWeather(weatherQueryFor(place), formatPlace(place), controller, place);
         return;
       }
 
@@ -145,7 +168,7 @@ export default function Home() {
   function choosePlace(place: Suggestion) {
     const label = formatPlace(place);
     setQuery(label);
-    fetchWeather(`id:${place.id}`, label);
+    fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
 
   function pickCity(city: string) {
@@ -234,6 +257,7 @@ export default function Home() {
             <ul className="mt-3 space-y-2">
               {view.options.map((place) => {
                 const rest = formatPlace(place).slice(place.name.length + 2);
+                const tag = kindLabel(place.kind);
                 return (
                   <li key={place.id}>
                     <button
@@ -243,6 +267,7 @@ export default function Home() {
                     >
                       <span className="font-medium">{place.name}</span>
                       {rest && <span className="text-muted">, {rest}</span>}
+                      {tag && <span className="ml-2 text-sm text-muted">· {tag}</span>}
                     </button>
                   </li>
                 );
@@ -264,7 +289,7 @@ export default function Home() {
             <p className="mt-1">{view.message}</p>
             <button
               type="button"
-              onClick={() => fetchWeather(view.query, view.label)}
+              onClick={() => fetchWeather(view.query, view.label, undefined, view.place)}
               className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
             >
               Try again
@@ -279,7 +304,11 @@ export default function Home() {
         Weather data by{" "}
         <a href="https://www.weatherapi.com/" className="underline hover:text-ink">
           WeatherAPI.com
+        </a>. Place search powered by{" "}
+        <a href="https://www.geoapify.com/" className="underline hover:text-ink">
+          Geoapify
         </a>
+        {" "}(© OpenStreetMap contributors).
       </footer>
     </main>
   );
