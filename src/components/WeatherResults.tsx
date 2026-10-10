@@ -22,8 +22,8 @@ export default function WeatherResults({ data }: { data: WeatherData }) {
 
   return (
     <article aria-labelledby="place-heading">
-      <h2 id="place-heading" className="text-3xl font-semibold tracking-tight">
-        {location.name}
+<h2 id="place-heading" className="-ml-[0.05em] text-3xl font-semibold tracking-tight">
+          {location.name}
       </h2>
       {place && <p className="text-muted">{place}</p>}
       <p className="mt-1 text-sm text-muted">
