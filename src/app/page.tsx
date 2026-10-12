@@ -13,8 +13,14 @@ type ViewState =
   | { status: "choose"; query: string; options: Suggestion[] }
   | { status: "success"; data: WeatherData }
   | { status: "not-found"; message: string }
-  | { status: "error"; message: string; query: string; label: string; place?: Suggestion };
-
+  | {
+      status: "error";
+      message: string;
+      query: string;
+      label: string;
+      place?: Suggestion;
+      searchText?: string; // set when place search failed, so "Try again" re-runs the search
+    };
 const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
@@ -137,7 +143,16 @@ export default function Home() {
         if (!isCurrent(controller)) return;
         // If the search check fails, fall back to the old behaviour:
         // let WeatherAPI pick its best match for the typed text
-        fetchWeather(text, text, controller);
+        // Don't fall back to WeatherAPI's free-text matching: it doesn't know
+        // places like Edo State and guesses (e.g. "Edo, Nigeria" -> Pocatello,
+        // USA). An honest error is better than weather for the wrong place.
+        setView({
+          status: "error",
+          message: "Place search is unavailable right now. Please try again.",
+          query: text,
+          label: text,
+          searchText: text,
+        });
         return;
       }
 
@@ -289,8 +304,11 @@ export default function Home() {
             <p className="mt-1">{view.message}</p>
             <button
               type="button"
-              onClick={() => fetchWeather(view.query, view.label, undefined, view.place)}
-              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
+              onClick={() =>
+                view.searchText
+                  ? handleSearch(view.searchText)
+                  : fetchWeather(view.query, view.label, undefined, view.place)
+              }              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
             >
               Try again
             </button>
