@@ -327,6 +327,7 @@ export default function Home() {
           Geoapify
         </a>
         {" "}(© OpenStreetMap contributors).
+        <p className="mt-2">v1.1</p>
       </footer>
     </main>
   );
