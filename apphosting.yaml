@@ -1,0 +1,5 @@
+env:
+  - variable: WEATHER_API_KEY
+    secret: WEATHER_API_KEY
+  - variable: GEOAPIFY_API_KEY
+    secret: GEOAPIFY_API_KEY
