@@ -17,6 +17,7 @@ const MESSAGES: Record<string, string> = {
   "auth/popup-blocked": "Your browser blocked the Google sign-in window. Allow pop-ups and try again.",
   "auth/unauthorized-domain": "Google sign-in isn't available on this web address. Please sign in with email and password instead.",
   "auth/operation-not-allowed": "This sign-in method isn't turned on yet. Please try another way to sign in.",
+  "auth/missing-email": "Please enter your email.",
 };
 
 export function authErrorMessage(error: unknown): string {

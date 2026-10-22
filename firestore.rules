@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helper functions ----------
+
+    // True if the request comes from a signed-in user
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // True if the signed-in user's ID matches the ID in the path.
+    // This is what stops Bob using Alice's ID to reach her data.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // A profile must have exactly these fields, with sensible types and lengths.
+    // hasOnly blocks extra fields such as "role" or "isAdmin" that a user could
+    // add to try to give themselves extra powers.
+    function isValidProfile(data) {
+      return data.keys().hasAll(['name', 'email', 'gender', 'createdAt'])
+        && data.keys().hasOnly(['name', 'email', 'gender', 'createdAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 50
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.gender in ['female', 'male', 'other', 'prefer-not-to-say']
+        && data.createdAt is timestamp;
+    }
+
+    // A favourite must have exactly these fields, with real coordinates.
+    function isValidFavourite(data) {
+      return data.keys().hasAll(['name', 'lat', 'lon', 'createdAt'])
+        && data.keys().hasOnly(['name', 'lat', 'lon', 'createdAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lon is number && data.lon >= -180 && data.lon <= 180
+        && data.createdAt is timestamp;
+    }
+
+    // ---------- User profiles: users/{userId} ----------
+    match /users/{userId} {
+      // Only the owner can read their profile. Bob and signed-out visitors are denied.
+      allow read: if isOwner(userId);
+
+      // Only the owner can create their profile, it must be valid, and createdAt must
+      // be the real server time (stops users faking when their account was made).
+      allow create: if isOwner(userId)
+        && isValidProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+
+      // Only the owner can update their profile, it must stay valid,
+      // and createdAt can never be changed after the profile is created.
+      allow update: if isOwner(userId)
+        && isValidProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Nobody can delete a profile from the app (account deletion would be handled separately).
+      allow delete: if false;
+
+      // ---------- Favourites: users/{userId}/favourites/{favouriteId} ----------
+      match /favourites/{favouriteId} {
+        // Only the owner can read or remove their favourites.
+        allow read, delete: if isOwner(userId);
+
+        // Only the owner can add or re-save a favourite. It must be valid and
+        // stamped with the server time. Saving the same place again overwrites
+        // the same document, so it never creates a duplicate.
+        allow create, update: if isOwner(userId)
+          && isValidFavourite(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    // ---------- Everything else ----------
+    // There is no rule for any other path, so Firestore denies it by default.
+    // This covers collections like admin/settings, for every user.
+  }
+}
