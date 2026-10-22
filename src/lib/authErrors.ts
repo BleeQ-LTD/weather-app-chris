@@ -15,6 +15,8 @@ const MESSAGES: Record<string, string> = {
   "auth/network-request-failed": "You seem to be offline. Check your connection and try again.",
   "auth/popup-closed-by-user": "The Google sign-in window was closed before finishing.",
   "auth/popup-blocked": "Your browser blocked the Google sign-in window. Allow pop-ups and try again.",
+  "auth/unauthorized-domain": "Google sign-in isn't available on this web address. Please sign in with email and password instead.",
+  "auth/operation-not-allowed": "This sign-in method isn't turned on yet. Please try another way to sign in.",
 };
 
 export function authErrorMessage(error: unknown): string {
