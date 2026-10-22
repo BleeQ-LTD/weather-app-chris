@@ -5,7 +5,7 @@ import {
   splitLocalDateTime,
 } from "@/lib/weather";
 
-export default function WeatherResults({ data }: { data: WeatherData }) {
+export default function WeatherResults({ data, action }: { data: WeatherData; action?: React.ReactNode }) {
   const { location, current, forecast, units } = data;
   const local = splitLocalDateTime(location.localTime);
   const updated = splitLocalDateTime(current.updatedAt);
@@ -22,9 +22,12 @@ export default function WeatherResults({ data }: { data: WeatherData }) {
 
   return (
     <article aria-labelledby="place-heading">
-<h2 id="place-heading" className="-ml-[0.05em] text-3xl font-semibold tracking-tight">
+      <div className="flex items-start justify-between gap-4">
+        <h2 id="place-heading" className="-ml-[0.05em] text-3xl font-semibold tracking-tight">
           {location.name}
-      </h2>
+        </h2>
+        {action}
+      </div>
       {place && <p className="text-muted">{place}</p>}
       <p className="mt-1 text-sm text-muted">
         Local time {local.time},{" "}

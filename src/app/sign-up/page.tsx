@@ -8,14 +8,15 @@ import { auth } from "@/lib/firebase";
 import { authErrorMessage } from "@/lib/authErrors";
 import { useAuth } from "@/components/AuthProvider";
 import PasswordInput from "@/components/PasswordInput";
+import { createProfile, GENDER_OPTIONS } from "@/lib/profile";
 
 
-const GENDER_OPTIONS = [
-  { value: "female", label: "Female" },
-  { value: "male", label: "Male" },
-  { value: "other", label: "Other" },
-  { value: "prefer-not-to-say", label: "Prefer not to say" },
-];
+// const GENDER_OPTIONS = [
+//   { value: "female", label: "Female" },
+//   { value: "male", label: "Male" },
+//   { value: "other", label: "Other" },
+//   { value: "prefer-not-to-say", label: "Prefer not to say" },
+// ];
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 50;
 
@@ -34,9 +35,11 @@ export default function SignUpPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Someone who is already signed in doesn't need this page
+   // Someone who is already signed in doesn't need this page.
+  // While sign-up is in progress we wait, so the profile finishes saving first.
   useEffect(() => {
-    if (authState.status === "signed-in") router.replace("/");
-  }, [authState.status, router]);
+    if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
+  }, [authState.status, isSubmitting, router]);
 
   // Check the form before contacting Firebase. Returns an error message, or "" if all is fine.
   function validate(): string {
@@ -61,15 +64,18 @@ export default function SignUpPage() {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateProfile(user, { displayName: name.trim() });
-      // Saving the full profile (including gender) to Firestore at users/{uid}
-      // is added in the profiles issue.
+      // Save the profile (including gender) to Firestore at users/{uid}
+      await createProfile(user.uid, {
+        name: name.trim(),
+        email: user.email ?? email.trim(),
+        gender,
+      });
       router.replace("/");
     } catch (err) {
       setError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
-
   // While Firebase checks whether someone is already signed in, show a loading state
     if (authState.status === "checking" || authState.status === "signed-in"){
     return (

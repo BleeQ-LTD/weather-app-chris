@@ -98,6 +98,8 @@ function parseForecast(data: unknown) {
       country: location.country,
       localTime: location.localtime,
       timezone: location.tz_id,
+      lat: typeof location.lat === "number" ? location.lat : null,
+      lon: typeof location.lon === "number" ? location.lon : null,
     },
     current: {
       updatedAt: current.last_updated,
