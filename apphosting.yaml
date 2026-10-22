@@ -3,3 +3,27 @@ env:
     secret: WEATHER_API_KEY
   - variable: GEOAPIFY_API_KEY
     secret: GEOAPIFY_API_KEY
+
+  # Firebase web config for Auth and Firestore (project: weather-app-6c101).
+  # These are public identifiers, not secrets: they are sent to every browser anyway.
+  # Needed at BUILD time because Next.js bakes NEXT_PUBLIC_ values into the page.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyB5P6B0GlDwo-p5TEQNtkwsADHSUMwWOn0
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: weather-app-6c101.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: weather-app-6c101
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:322016854640:web:44ca5473bc4d01a7a26ab5
+    availability:
+      - BUILD
+      - RUNTIME
