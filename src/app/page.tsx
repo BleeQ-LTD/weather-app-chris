@@ -6,6 +6,8 @@ import WeatherResults from "@/components/WeatherResults";
 import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 import AccountBar from "@/components/AccountBar";
+import { useAuth } from "@/components/AuthProvider";
+import WelcomeScreen from "@/components/WelcomeScreen";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -25,7 +27,7 @@ type ViewState =
 const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
-export default function Home() {
+function WeatherApp() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -333,6 +335,27 @@ export default function Home() {
         {" "}(© OpenStreetMap contributors).
         <p className="mt-2">v1.1.1</p>
       </footer>
+    </main>
+  );
+}
+
+// Decides what to show: a loading placeholder, the welcome screen, or the weather app
+export default function Home() {
+  const authState = useAuth();
+
+  if (authState.status === "checking") return <HomeLoading />;
+  if (authState.status === "signed-out") return <WelcomeScreen />;
+  return <WeatherApp />;
+}
+
+// Placeholder shapes shown while we work out who the visitor is
+function HomeLoading() {
+  return (
+    <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-16" aria-busy="true">
+      <p className="sr-only" role="status">Loading…</p>
+      <div className="h-7 w-32 rounded bg-line motion-safe:animate-pulse" />
+      <div className="mt-3 h-4 w-64 rounded bg-line motion-safe:animate-pulse" />
+      <div className="mt-10 h-11 w-full rounded-md bg-line motion-safe:animate-pulse" />
     </main>
   );
 }
