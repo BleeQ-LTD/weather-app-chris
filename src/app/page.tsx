@@ -5,6 +5,7 @@ import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
 import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
+import AccountBar from "@/components/AccountBar";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -208,9 +209,12 @@ export default function Home() {
 
   return (
     <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Weather</h1>
-        <p className="text-muted">Current conditions and a 3-day forecast.</p>
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Weather</h1>
+          <p className="text-muted">Current conditions and a 3-day forecast.</p>
+        </div>
+        <AccountBar />
       </header>
 
       <SearchForm
