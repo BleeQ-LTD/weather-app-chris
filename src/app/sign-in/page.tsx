@@ -59,7 +59,7 @@ export default function SignInPage() {
   }
 
   // While Firebase checks whether someone is already signed in, show a loading state
-    if (authState.status === "checking" || authState.status === "signed-in") {
+  if (authState.status !== "signed-out") {
     return (
       <main className="mx-auto w-full max-w-sm px-5 py-16">
         <p className="text-muted" role="status">Loading…</p>

@@ -141,9 +141,8 @@ describe("signed-out visitors", () => {
 });
 
 describe("invalid data is rejected", () => {
-   it("rejects a profile with no name", async () => {
-    const noName: Record<string, unknown> = { ...validProfile() };
-    delete noName.name;
+  it("rejects a profile with no name", async () => {
+    const { name: _removed, ...noName } = validProfile();
     await assertFails(setDoc(doc(alice(), "users/alice"), noName));
   });
 

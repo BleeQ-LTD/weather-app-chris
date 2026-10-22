@@ -27,21 +27,6 @@ export default function AccountBar() {
     );
   }
 
-    if (authState.status === "guest") {
-    return (
-      <nav className="flex shrink-0 items-center gap-3 whitespace-nowrap text-sm">
-        <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">Guest</span>
-        <Link href="/sign-in" className="hover:underline">Sign in</Link>
-        <Link
-          href="/sign-up"
-          className="rounded-md bg-rain px-3 py-1.5 font-medium text-white hover:opacity-90"
-        >
-          Create account
-        </Link>
-      </nav>
-    );
-  }
-
   if (authState.status === "signed-out") {
     return (
       <nav className="flex shrink-0 items-center gap-3 whitespace-nowrap text-sm">
