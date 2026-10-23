@@ -16,6 +16,8 @@ export interface WeatherData {
     country: string;
     localTime: string; // "2026-09-29 9:05"
     timezone: string;
+    lat: number | null; // null if the weather service didn't send coordinates
+    lon: number | null;
   };
   current: {
     updatedAt: string; // "2026-09-29 09:00"

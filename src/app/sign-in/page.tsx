@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { authErrorMessage } from "@/lib/authErrors";
+import { profileExists } from "@/lib/profile";
 import { useAuth } from "@/components/AuthProvider";
 import PasswordInput from "@/components/PasswordInput";
 
@@ -21,10 +22,17 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Someone who is already signed in doesn't need this page
+  // Someone who is already signed in doesn't need this page.
+  // While a sign-in is in progress we wait, so we can check their profile first.
   useEffect(() => {
-    if (authState.status === "signed-in") router.replace("/");
-  }, [authState.status, router]);
+    if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
+  }, [authState.status, isSubmitting, router]);
+
+  // After signing in: users without a profile (first-time Google users) finish setting it up
+  async function goToNextPage(uid: string) {
+    const hasProfile = await profileExists(uid);
+    router.replace(hasProfile ? "/" : "/complete-profile");
+  }
 
   async function handleEmailSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,8 +44,8 @@ export default function SignInPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      router.replace("/");
+      const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await goToNextPage(user.uid);
     } catch (err) {
       setError(authErrorMessage(err));
       setIsSubmitting(false);
@@ -48,10 +56,8 @@ export default function SignInPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-      // Google doesn't share gender, so new Google users will be asked
-      // to complete their profile (added in the profiles issue).
-      router.replace("/");
+      const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+      await goToNextPage(user.uid);
     } catch (err) {
       setError(authErrorMessage(err));
       setIsSubmitting(false);
@@ -59,7 +65,7 @@ export default function SignInPage() {
   }
 
   // While Firebase checks whether someone is already signed in, show a loading state
-    if (authState.status === "checking" || authState.status === "signed-in") {
+  if (authState.status === "checking" || (authState.status === "signed-in" && !isSubmitting)) {
     return (
       <main className="mx-auto w-full max-w-sm px-5 py-16">
         <p className="text-muted" role="status">Loading…</p>

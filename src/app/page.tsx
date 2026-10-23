@@ -8,6 +8,10 @@ import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 import AccountBar from "@/components/AccountBar";
 import { useAuth } from "@/components/AuthProvider";
 import WelcomeScreen from "@/components/WelcomeScreen";
+import FavouritesList from "@/components/FavouritesList";
+import SaveFavouriteButton from "@/components/SaveFavouriteButton";
+import type { Favourite } from "@/lib/favourites";
+import { useFavourites } from "@/lib/useFavourites";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -29,6 +33,7 @@ const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
 function WeatherApp() {
   const [query, setQuery] = useState("");
+  const favourites = useFavourites();
   const [view, setView] = useState<ViewState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
@@ -85,6 +90,8 @@ function WeatherApp() {
                     name: place.name,
                     region: place.region,
                     country: place.country,
+                    lat: place.lat,
+                    lon: place.lon,
                   },
                 }
               : data,
@@ -194,6 +201,11 @@ function WeatherApp() {
     handleSearch(city);
   }
 
+  function pickFavourite(favourite: Favourite) {
+    setQuery(favourite.name);
+    fetchWeather(`${favourite.lat},${favourite.lon}`, favourite.name);
+  }
+
   // Short text for screen readers, announced whenever the state changes
   const announcement = {
     idle: "",
@@ -227,6 +239,9 @@ function WeatherApp() {
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
+
+      {/* Signed-in users' saved places (nothing shows for guests) */}
+      <FavouritesList favourites={favourites} onPick={pickFavourite} />
 
       <p role="status" className="sr-only">
         {announcement}
@@ -314,14 +329,20 @@ function WeatherApp() {
                 view.searchText
                   ? handleSearch(view.searchText)
                   : fetchWeather(view.query, view.label, undefined, view.place)
-              }              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
+              }
+              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
             >
               Try again
             </button>
           </div>
         )}
 
-        {view.status === "success" && <WeatherResults data={view.data} />}
+        {view.status === "success" && (
+          <WeatherResults
+            data={view.data}
+            action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
+          />
+        )}
       </section>
 
       <footer className="mt-16 text-sm text-muted">
@@ -351,7 +372,7 @@ export default function Home() {
 // Placeholder shapes shown while we work out who the visitor is
 function HomeLoading() {
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-16" aria-busy="true">
+    <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16" aria-busy="true">
       <p className="sr-only" role="status">Loading…</p>
       <div className="h-7 w-32 rounded bg-line motion-safe:animate-pulse" />
       <div className="mt-3 h-4 w-64 rounded bg-line motion-safe:animate-pulse" />
