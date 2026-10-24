@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { authErrorMessage } from "@/lib/authErrors";
-import { profileExists } from "@/lib/profile";
 import { useAuth } from "@/components/AuthProvider";
 import PasswordInput from "@/components/PasswordInput";
 
@@ -22,18 +21,14 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Someone who is already signed in doesn't need this page.
-  // While a sign-in is in progress we wait, so we can check their profile first.
+  // Someone who is already signed in doesn't need this page
   useEffect(() => {
     if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
   }, [authState.status, isSubmitting, router]);
 
-  // After signing in: users without a profile (first-time Google users) finish setting it up
-  async function goToNextPage(uid: string) {
-    const hasProfile = await profileExists(uid);
-    router.replace(hasProfile ? "/" : "/complete-profile");
-  }
-
+  // After any sign-in we go to the home page. The home page loads the profile and decides:
+  // existing profile -> the app; no profile (new Google user) -> "complete your profile";
+  // connection problem -> an error with a retry.
   async function handleEmailSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!email.trim() || !password) {
@@ -44,20 +39,21 @@ export default function SignInPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
-      await goToNextPage(user.uid);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      router.replace("/");
     } catch (err) {
       setError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
 
+  // Google sign-in is also sign-up: it creates the account if it doesn't exist yet
   async function handleGoogleSignIn() {
     setError("");
     setIsSubmitting(true);
     try {
-      const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
-      await goToNextPage(user.uid);
+      await signInWithPopup(auth, new GoogleAuthProvider());
+      router.replace("/");
     } catch (err) {
       setError(authErrorMessage(err));
       setIsSubmitting(false);

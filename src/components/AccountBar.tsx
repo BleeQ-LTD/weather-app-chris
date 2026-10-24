@@ -4,10 +4,12 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
+import { useProfile } from "@/components/ProfileProvider";
 
-// Top-right of the page: shows sign-in links, or the signed-in user with a sign-out button
+// Top-right of the page: shows sign-in links, "Guest", or the signed-in user with a sign-out button
 export default function AccountBar() {
   const authState = useAuth();
+  const profileState = useProfile();
 
   async function handleSignOut() {
     try {
@@ -27,7 +29,7 @@ export default function AccountBar() {
     );
   }
 
-    if (authState.status === "guest") {
+  if (authState.status === "guest") {
     return (
       <nav className="flex shrink-0 items-center gap-3 whitespace-nowrap text-sm">
         <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">Guest</span>
@@ -56,8 +58,12 @@ export default function AccountBar() {
     );
   }
 
-  // Show the first name only, so long names don't crowd the header
-  const fullName = authState.user.displayName || authState.user.email || "there";
+  // The name comes from the Firestore profile: the app's single source of truth.
+  // (The home page only shows this once the profile is ready.)
+  const fullName =
+    profileState.status === "ready" && profileState.profile.name
+      ? profileState.profile.name
+      : authState.user.email || "there";
   const firstName = fullName.split(" ")[0];
   const initial = firstName.charAt(0).toUpperCase();
 

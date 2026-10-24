@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
 import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
@@ -12,6 +12,9 @@ import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
+import { useRouter } from "next/navigation";
+import { useProfile } from "@/components/ProfileProvider";
+import ProfileError from "@/components/ProfileError";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -361,13 +364,30 @@ function WeatherApp() {
 }
 
 // Decides what to show: a loading placeholder, the welcome screen, or the weather app
-export default function Home() {
-  const authState = useAuth();
+  // Decides what to show. A signed-in user's profile must load before the app opens.
+  export default function Home() {
+    const authState = useAuth();
+    const profileState = useProfile();
 
-  if (authState.status === "checking") return <HomeLoading />;
-  if (authState.status === "signed-out") return <WelcomeScreen />;
-  return <WeatherApp />;
-}
+    if (authState.status === "checking") return <HomeLoading />;
+    if (authState.status === "signed-out") return <WelcomeScreen />;
+    if (authState.status === "guest") return <WeatherApp />;
+
+    // Signed in:
+    if (profileState.status === "ready") return <WeatherApp />;
+    if (profileState.status === "missing") return <GoToCompleteProfile />; // new Google user
+    if (profileState.status === "error") return <ProfileError onRetry={profileState.reload} />; // connection problem
+    return <HomeLoading />;
+  }
+
+  // Firestore confirmed there's no profile, so send them to finish it
+  function GoToCompleteProfile() {
+    const router = useRouter();
+    useEffect(() => {
+      router.replace("/complete-profile");
+    }, [router]);
+    return <HomeLoading />;
+  }
 
 // Placeholder shapes shown while we work out who the visitor is
 function HomeLoading() {
