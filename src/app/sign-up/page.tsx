@@ -1,94 +1,86 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { authErrorMessage } from "@/lib/authErrors";
+import { updateProfile, type User } from "firebase/auth";
 import { useAuth } from "@/components/AuthProvider";
-import PasswordInput from "@/components/PasswordInput";
+import { useProfile } from "@/components/ProfileProvider";
+import ProfileError from "@/components/ProfileError";
 import { createProfile, GENDER_OPTIONS } from "@/lib/profile";
 
-
-// const GENDER_OPTIONS = [
-//   { value: "female", label: "Female" },
-//   { value: "male", label: "Male" },
-//   { value: "other", label: "Other" },
-//   { value: "prefer-not-to-say", label: "Prefer not to say" },
-// ];
-const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 50;
-
 const inputClass =
   "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
 
-export default function SignUpPage() {
+// Google sign-in is also sign-up: it creates an account if none exists, but Google
+// doesn't tell us the user's gender. So a new Google user finishes their profile here.
+// The form only shows when Firestore has CONFIRMED there is no profile.
+export default function CompleteProfilePage() {
   const router = useRouter();
   const authState = useAuth();
+  const profileState = useProfile();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [gender, setGender] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Someone who is already signed in doesn't need this page
-   // Someone who is already signed in doesn't need this page.
-  // While sign-up is in progress we wait, so the profile finishes saving first.
   useEffect(() => {
-    if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
-  }, [authState.status, isSubmitting, router]);
+    // Only signed-in users belong here
+    if (authState.status === "signed-out" || authState.status === "guest") {
+      router.replace("/sign-in");
+    }
+    // Existing users already have a profile, so they never belong here
+    else if (profileState.status === "ready") {
+      router.replace("/");
+    }
+  }, [authState.status, profileState.status, router]);
 
-  // Check the form before contacting Firebase. Returns an error message, or "" if all is fine.
-  function validate(): string {
-    if (!name.trim()) return "Please enter your name.";
-    if (name.trim().length > MAX_NAME_LENGTH) return `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
-    if (!email.trim()) return "Please enter your email.";
-    if (!gender) return "Please choose an option for gender.";
-    if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-    return "";
+  // A connection problem is not the same as "no profile": show an error with a retry
+  if (authState.status === "signed-in" && profileState.status === "error") {
+    return <ProfileError onRetry={profileState.reload} />;
   }
+
+  if (authState.status === "signed-in" && profileState.status === "missing") {
+    return <CompleteProfileForm user={authState.user} onSaved={profileState.reload} />;
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-sm px-5 py-16">
+      <p className="text-muted" role="status">Loading…</p>
+    </main>
+  );
+}
+
+function CompleteProfileForm({ user, onSaved }: { user: User; onSaved: () => void }) {
+  const router = useRouter();
+  // Start with the name Google gave us, which the user can change
+  const [name, setName] = useState(user.displayName ?? "");
+  const [gender, setGender] = useState("");
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const problem = validate();
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    if (!name.trim()) return setError("Please enter your name.");
+    if (name.trim().length > MAX_NAME_LENGTH) return setError(`Name must be ${MAX_NAME_LENGTH} characters or fewer.`);
+    if (!gender) return setError("Please choose an option for gender.");
 
     setError("");
-    setIsSubmitting(true);
+    setIsSaving(true);
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      // Firestore is the source of truth for the app...
+      await createProfile(user.uid, { name: name.trim(), email: user.email ?? "", gender });
+      // ...and we keep the Auth account's display name consistent with it
       await updateProfile(user, { displayName: name.trim() });
-      // Save the profile (including gender) to Firestore at users/{uid}
-      await createProfile(user.uid, {
-        name: name.trim(),
-        email: user.email ?? email.trim(),
-        gender,
-      });
+      onSaved(); // reload the profile so the app sees the new name straight away
       router.replace("/");
     } catch (err) {
-      setError(authErrorMessage(err));
-      setIsSubmitting(false);
+      console.error("[profile] Could not save profile:", err);
+      setError("We couldn't save your profile. Check your connection and try again.");
+      setIsSaving(false);
     }
-  }
-  // While Firebase checks whether someone is already signed in, show a loading state
-    if (authState.status === "checking" || authState.status === "signed-in"){
-    return (
-      <main className="mx-auto w-full max-w-sm px-5 py-16">
-        <p className="text-muted" role="status">Loading…</p>
-      </main>
-    );
   }
 
   return (
     <main className="mx-auto w-full max-w-sm px-5 py-10 sm:py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
-      <p className="text-muted">Save your favourite places and see them on any device.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">Almost done</h1>
+      <p className="text-muted">Tell us a little about yourself to finish setting up your account.</p>
 
       <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-4">
         <label className="block">
@@ -99,17 +91,6 @@ export default function SignUpPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={MAX_NAME_LENGTH}
-            className={inputClass}
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium">Email</span>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
           />
         </label>
@@ -126,12 +107,6 @@ export default function SignUpPage() {
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium">Password</span>
-          <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" />
-          <span className="mt-1 block text-xs text-muted">At least {MIN_PASSWORD_LENGTH} characters.</span>
-        </label>
-
         {error && (
           <p role="alert" className="border-l-4 border-alert bg-surface px-3 py-2 text-sm">
             {error}
@@ -140,17 +115,12 @@ export default function SignUpPage() {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSaving}
           className="w-full rounded-md bg-rain px-4 py-2 font-medium text-white disabled:opacity-60"
         >
-          {isSubmitting ? "Creating account…" : "Create account"}
+          {isSaving ? "Saving…" : "Continue"}
         </button>
       </form>
-
-      <p className="mt-6 text-sm text-muted">
-        Already have an account?{" "}
-        <Link href="/sign-in" className="underline hover:text-ink">Sign in</Link>
-      </p>
     </main>
   );
 }

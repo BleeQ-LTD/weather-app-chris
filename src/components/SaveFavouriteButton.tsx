@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { favouriteId, removeFavourite, saveFavourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
 import type { WeatherData } from "@/lib/weather";
+
+const CONFIRMATION_MS = 3000; // how long the "Saved" message stays visible
 
 // ☆ Save / ★ Saved toggle next to the place name. Guests are asked to sign in instead.
 export default function SaveFavouriteButton({
@@ -15,6 +17,14 @@ export default function SaveFavouriteButton({
   favourites: FavouritesState;
 }) {
   const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+
+  // Hide the confirmation message after a few seconds
+  useEffect(() => {
+    if (!confirmation) return;
+    const timer = setTimeout(() => setConfirmation(""), CONFIRMATION_MS);
+    return () => clearTimeout(timer);
+  }, [confirmation]);
 
   if (favourites.uid === null) {
     return (
@@ -34,11 +44,19 @@ export default function SaveFavouriteButton({
 
   function handleClick() {
     setError("");
-    const change = isSaved ? removeFavourite(uid, id) : saveFavourite(uid, { name: location.name, lat, lon });
-    change.catch((err) => {
-      console.error("[favourites] Could not update favourite:", err);
-      setError("Couldn't update your saved places. Try again.");
-    });
+    setConfirmation("");
+    const wasSaved = isSaved;
+    const change = wasSaved ? removeFavourite(uid, id) : saveFavourite(uid, { name: location.name, lat, lon });
+
+    change
+      .then(() => {
+        // Only confirm once Firestore has actually stored the change
+        setConfirmation(wasSaved ? "Removed from your places" : "✓ Saved to your places");
+      })
+      .catch((err) => {
+        console.error("[favourites] Could not update favourite:", err);
+        setError("Couldn't update your saved places. Try again.");
+      });
   }
 
   return (
@@ -52,6 +70,12 @@ export default function SaveFavouriteButton({
       >
         {isSaved ? "★ Saved" : "☆ Save"}
       </button>
+
+      {/* Always on the page so screen readers announce each new message */}
+      <p role="status" aria-live="polite" className="mt-1 min-h-4 text-xs text-muted">
+        {confirmation}
+      </p>
+
       {error && <p role="alert" className="mt-1 text-xs">{error}</p>}
     </div>
   );
