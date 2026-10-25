@@ -34,28 +34,39 @@ export default function SaveFavouriteButton({
     );
   }
 
+  // While we check whether this place is already saved, say so instead of showing a dead button
+  if (favourites.isLoading) {
+    return (
+      <span
+        role="status"
+        className="shrink-0 whitespace-nowrap rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-muted motion-safe:animate-pulse"
+      >
+        Checking…
+      </span>
+    );
+  }
+
   if (location.lat === null || location.lon === null) return null;
 
   const uid = favourites.uid;
-  const lat = location.lat;
-  const lon = location.lon;
-  const id = favouriteId(lat, lon);
+  const place = { name: location.name, country: location.country, lat: location.lat, lon: location.lon };
+  const id = favouriteId(place.name, place.country);
   const isSaved = favourites.items.some((favourite) => favourite.id === id);
 
   function handleClick() {
     setError("");
     setConfirmation("");
     const wasSaved = isSaved;
-    const change = wasSaved ? removeFavourite(uid, id) : saveFavourite(uid, { name: location.name, lat, lon });
+    const change = wasSaved ? removeFavourite(uid, id) : saveFavourite(uid, place);
 
     change
       .then(() => {
         // Only confirm once Firestore has actually stored the change
-        setConfirmation(wasSaved ? "Removed from your places" : "✓ Saved to your places");
+        setConfirmation(wasSaved ? "Removed from your favourites" : "✓ Saved to your favourites");
       })
       .catch((err) => {
         console.error("[favourites] Could not update favourite:", err);
-        setError("Couldn't update your saved places. Try again.");
+        setError("Couldn't update your favourites. Check your connection and try again.");
       });
   }
 
@@ -64,9 +75,8 @@ export default function SaveFavouriteButton({
       <button
         type="button"
         onClick={handleClick}
-        disabled={favourites.isLoading}
         aria-pressed={isSaved}
-        className="whitespace-nowrap rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:border-rain disabled:opacity-60"
+        className="whitespace-nowrap rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:border-rain"
       >
         {isSaved ? "★ Saved" : "☆ Save"}
       </button>

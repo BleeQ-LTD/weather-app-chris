@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { authErrorMessage } from "@/lib/authErrors";
+import { signInWithGoogle } from "@/lib/googleSignIn";
 import { useAuth } from "@/components/AuthProvider";
 import PasswordInput from "@/components/PasswordInput";
 
@@ -47,12 +48,11 @@ export default function SignInPage() {
     }
   }
 
-  // Google sign-in is also sign-up: it creates the account if it doesn't exist yet
   async function handleGoogleSignIn() {
     setError("");
     setIsSubmitting(true);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      await signInWithGoogle();
       router.replace("/");
     } catch (err) {
       setError(authErrorMessage(err));
