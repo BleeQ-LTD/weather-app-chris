@@ -26,7 +26,15 @@ export default function ResetPasswordPage() {
     setError("");
     setIsSending(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      // Tell Firebase where the link in the email should open: our own page.
+      // handleCodeInApp means our app handles the reset code, instead of
+      // Firebase's default page. Firebase adds mode=resetPassword and the
+      // one-time oobCode to this URL. The domain must be an authorised domain.
+      const actionCodeSettings = {
+        url: `${window.location.origin}/auth/action`,
+        handleCodeInApp: true,
+      };
+      await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
       setIsSent(true);
     } catch (err) {
       // Show the same success message whether or not an account exists,

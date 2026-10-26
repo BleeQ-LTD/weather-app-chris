@@ -18,6 +18,11 @@ const MESSAGES: Record<string, string> = {
   "auth/unauthorized-domain": "Google sign-in isn't available on this web address. Please sign in with email and password instead.",
   "auth/operation-not-allowed": "This sign-in method isn't turned on yet. Please try another way to sign in.",
   "auth/missing-email": "Please enter your email.",
+  "auth/expired-action-code": "This link has expired. Request a new one.",
+  "auth/invalid-action-code": "This link has already been used or isn't valid. Request a new one.",
+  "auth/unauthorized-continue-uri": "Password reset isn't set up for this web address yet. Please try from the main site.",
+  "auth/invalid-continue-uri": "Password reset isn't set up correctly. Please try again later.",
+  "auth/missing-continue-uri": "Password reset isn't set up correctly. Please try again later.",
 };
 
 export function authErrorMessage(error: unknown): string {
