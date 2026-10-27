@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FirebaseError } from "firebase/app";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { authErrorMessage } from "@/lib/authErrors";
 
 const inputClass =
   "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
 
+// Asks our server (/api/reset-password) to email a reset link.
+// The server sends the email itself, so the link opens OUR /auth/action page
+// instead of Firebase's default page.
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -26,24 +25,23 @@ export default function ResetPasswordPage() {
     setError("");
     setIsSending(true);
     try {
-      // Tell Firebase where the link in the email should open: our own page.
-      // handleCodeInApp means our app handles the reset code, instead of
-      // Firebase's default page. Firebase adds mode=resetPassword and the
-      // one-time oobCode to this URL. The domain must be an authorised domain.
-      const actionCodeSettings = {
-        url: `${window.location.origin}/auth/action`,
-        handleCodeInApp: true,
-      };
-      await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
-      setIsSent(true);
-    } catch (err) {
-      // Show the same success message whether or not an account exists,
-      // so attackers can't use this page to find out who has an account
-      if (err instanceof FirebaseError && err.code === "auth/user-not-found") {
+      const response = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      if (response.ok) {
+        // Shown whether or not an account exists, so this page can't be used
+        // to find out who has an account
         setIsSent(true);
-      } else {
-        setError(authErrorMessage(err));
+        return;
       }
+
+      const body = await response.json().catch(() => null);
+      setError(body?.error?.message ?? "We couldn't send the email right now. Please try again.");
+    } catch {
+      setError("You seem to be offline. Check your connection and try again.");
     } finally {
       setIsSending(false);
     }
