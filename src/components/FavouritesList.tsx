@@ -2,6 +2,7 @@
 
 import { removeFavourite, type Favourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
+import Link from "next/link";
 
 // "Your favourites" row under the search box, for signed-in users
 export default function FavouritesList({
@@ -12,8 +13,16 @@ export default function FavouritesList({
   onPick: (favourite: Favourite) => void;
 }) {
   const { uid, items, isLoading, isSlow, failed, retry } = favourites;
-  if (uid === null) return null;
-
+  // Visitors who aren't signed in: explain what an account gives THEM
+  if (uid === null) {
+    return (
+      <p className="mt-6 text-sm text-muted">
+        Want to keep your favourite places?{" "}
+        <Link href="/sign-up" className="underline hover:text-ink">Create a free account</Link>
+        {" "}to save them and see them on any device.
+      </p>
+    );
+  }
   if (isLoading) {
     return (
       <div className="mt-6" role="status">

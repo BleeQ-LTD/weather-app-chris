@@ -7,7 +7,6 @@ import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/wea
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
 import AccountBar from "@/components/AccountBar";
 import { useAuth } from "@/components/AuthProvider";
-import WelcomeScreen from "@/components/WelcomeScreen";
 import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
@@ -369,9 +368,11 @@ function WeatherApp() {
     const authState = useAuth();
     const profileState = useProfile();
 
-    if (authState.status === "checking") return <HomeLoading />;
-    if (authState.status === "signed-out") return <WelcomeScreen />;
-    if (authState.status === "guest") return <WeatherApp />;
+  if (authState.status === "checking") return <HomeLoading />;
+
+  // Everyone sees the weather straight away. We only ask people to sign in
+  // when an account actually helps them (saving favourites), not before.
+  if (authState.status === "signed-out" || authState.status === "guest") return <WeatherApp />;
 
     // Signed in:
     if (profileState.status === "ready") return <WeatherApp />;
