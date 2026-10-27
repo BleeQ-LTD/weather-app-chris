@@ -27,3 +27,15 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: ADMIN_SERVICE_ACCOUNT_KEY
+    secret: FIREBASE_ADMIN_SERVICE_ACCOUNT
+    availability:
+      - RUNTIME
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
+    availability:
+      - RUNTIME
+  - variable: APP_URL
+    value: https://weather-app-chris--bleeq-audit.europe-west4.hosted.app
+    availability:
+      - RUNTIME
