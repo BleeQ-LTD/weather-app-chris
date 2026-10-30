@@ -112,7 +112,6 @@ export default function ResetPasswordPage() {
         {error && (
           <div role="alert" className="border-l-4 border-alert bg-surface px-3 py-2 text-sm">
             <p>{error.message}</p>
-            {error.code && <p className="mt-1 text-xs text-muted">Error code: {error.code}</p>}
           </div>
         )}
 
