@@ -21,7 +21,7 @@ const inputClass =
 export default function SignUpPage() {
   const router = useRouter();
   const authState = useAuth();
-  const { reload: reloadProfile } = useProfile();
+  const { profileSaved } = useProfile();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -63,12 +63,10 @@ export default function SignUpPage() {
       // Keep the Auth display name consistent with the profile
       await updateProfile(user, { displayName: name.trim() });
       // Save the profile (the app's source of truth) to Firestore at users/{uid}
-      await createProfile(user.uid, {
-        name: name.trim(),
-        email: user.email ?? email.trim(),
-        gender,
-      });
-      reloadProfile(); // the profile now exists, so load it fresh
+      const newProfile = { name: name.trim(), email: user.email ?? email.trim(), gender };
+      await createProfile(user.uid, newProfile);
+      // We just saved it, so the app uses it straight away instead of downloading it again
+      profileSaved(user.uid, newProfile);
       router.replace("/");
     } catch (err) {
       setError(authErrorMessage(err));

@@ -2,39 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { User } from "firebase/auth";
+import { updateProfile, type User } from "firebase/auth";
 import { useAuth } from "@/components/AuthProvider";
-import { createProfile, GENDER_OPTIONS } from "@/lib/profile";
+import { useProfile } from "@/components/ProfileProvider";
+import ProfileError from "@/components/ProfileError";
+import { createProfile, GENDER_OPTIONS, type Profile } from "@/lib/profile";
 
 const MAX_NAME_LENGTH = 50;
 const inputClass =
   "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
 
-// Shown to users who signed in with Google for the first time,
-// because Google doesn't tell us their gender
+// Google sign-in is also sign-up: it creates an account if none exists, but Google
+// doesn't tell us the user's gender. So a new Google user finishes their profile here.
+// The form only shows when Firestore has CONFIRMED there is no profile.
 export default function CompleteProfilePage() {
   const router = useRouter();
   const authState = useAuth();
+  const profileState = useProfile();
 
-  // Only signed-in users belong here
   useEffect(() => {
+    // Only signed-in users belong here
     if (authState.status === "signed-out" || authState.status === "guest") {
       router.replace("/sign-in");
     }
-  }, [authState.status, router]);
+    // Existing users already have a profile, so they never belong here
+    else if (profileState.status === "ready") {
+      router.replace("/");
+    }
+  }, [authState.status, profileState.status, router]);
 
-  if (authState.status !== "signed-in") {
+  // A loading problem is not the same as "no profile": show the real reason with a retry
+  if (authState.status === "signed-in" && profileState.status === "error") {
+    return <ProfileError reason={profileState.reason} onRetry={profileState.reload} />;
+  }
+
+  if (authState.status === "signed-in" && profileState.status === "missing") {
+    const user = authState.user;
     return (
-      <main className="mx-auto w-full max-w-sm px-5 py-16">
-        <p className="text-muted" role="status">Loading…</p>
-      </main>
+      <CompleteProfileForm
+        user={user}
+        onSaved={(profile) => profileState.profileSaved(user.uid, profile)}
+      />
     );
   }
 
-  return <CompleteProfileForm user={authState.user} />;
+  return (
+    <main className="mx-auto w-full max-w-sm px-5 py-16">
+      <p className="text-muted" role="status">Loading your account…</p>
+    </main>
+  );
 }
 
-function CompleteProfileForm({ user }: { user: User }) {
+function CompleteProfileForm({ user, onSaved }: { user: User; onSaved: (profile: Profile) => void }) {
   const router = useRouter();
   // Start with the name Google gave us, which the user can change
   const [name, setName] = useState(user.displayName ?? "");
@@ -50,12 +69,22 @@ function CompleteProfileForm({ user }: { user: User }) {
 
     setError("");
     setIsSaving(true);
+    const profile: Profile = { name: name.trim(), email: user.email ?? "", gender };
     try {
-      await createProfile(user.uid, { name: name.trim(), email: user.email ?? "", gender });
+      // Firestore is the source of truth for the app...
+      await createProfile(user.uid, profile);
+      // ...and we keep the Auth account's display name consistent with it
+      await updateProfile(user, { displayName: profile.name });
+      // We just saved it, so the app uses it straight away instead of downloading it again
+      onSaved(profile);
       router.replace("/");
     } catch (err) {
       console.error("[profile] Could not save profile:", err);
-      setError("We couldn't save your profile. Check your connection and try again.");
+      setError(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? "You're offline. Check your internet connection, then try again."
+          : "We couldn't save your profile. Please try again in a moment."
+      );
       setIsSaving(false);
     }
   }
