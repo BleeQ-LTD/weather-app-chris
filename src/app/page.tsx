@@ -224,14 +224,9 @@ function WeatherApp() {
   }[view.status];
 
   return (
-    <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Weather</h1>
-          <p className="text-muted">Current conditions and a 3-day forecast.</p>
-        </div>
-        <AccountBar />
-      </header>
+    <main className="mx-auto w-full max-w-xl px-5 py-8 sm:py-10">
+         {/* The visible app name is in the top nav; this heading is for screen readers */}
+         <h1 className="sr-only">Weather</h1>
 
       <SearchForm
         value={query}
@@ -346,18 +341,6 @@ function WeatherApp() {
           />
         )}
       </section>
-
-      <footer className="mt-16 text-sm text-muted">
-        Weather data by{" "}
-        <a href="https://www.weatherapi.com/" className="underline hover:text-ink">
-          WeatherAPI.com
-        </a>. Place search powered by{" "}
-        <a href="https://www.geoapify.com/" className="underline hover:text-ink">
-          Geoapify
-        </a>
-        {" "}(© OpenStreetMap contributors).
-        <p className="mt-2">v1.1.1</p>
-      </footer>
     </main>
   );
 }

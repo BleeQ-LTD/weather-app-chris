@@ -14,15 +14,9 @@ export default function FavouritesList({
 }) {
   const { uid, items, isLoading, isSlow, failed, retry } = favourites;
   // Visitors who aren't signed in: explain what an account gives THEM
-  if (uid === null) {
-    return (
-      <p className="mt-6 text-sm text-muted">
-        Want to keep your favourite places?{" "}
-        <Link href="/sign-up" className="underline hover:text-ink">Create a free account</Link>
-        {" "}to save them and see them on any device.
-      </p>
-    );
-  }
+  // nav's "Create account" and by "Sign in to save" on the weather results.
+  if (uid === null) return null;
+
   if (isLoading) {
     return (
       <div className="mt-6" role="status">
