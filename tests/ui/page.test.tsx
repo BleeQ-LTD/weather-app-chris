@@ -54,7 +54,9 @@ describe("Home page request handling", () => {
     const user = userEvent.setup();
     const { container } = render(<Home />);
 
-    await user.click(screen.getByRole("button", { name: "Lagos" }));
+    await user.type(screen.getByRole("combobox"), "Lagos");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    
     await resultsSection(container).findByText(/Loading weather for Lagos, Nigeria/);
 
     await switchToAbuja(user);
@@ -80,7 +82,9 @@ describe("Home page request handling", () => {
     const user = userEvent.setup();
     const { container } = render(<Home />);
 
-    await user.click(screen.getByRole("button", { name: "Lagos" }));
+    await user.type(screen.getByRole("combobox"), "Lagos");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    
     await switchToAbuja(user);
     await resultsSection(container).findByText(/Loading weather for Abuja, Nigeria/);
 
