@@ -49,7 +49,13 @@ export default function SaveFavouriteButton({
   if (location.lat === null || location.lon === null) return null;
 
   const uid = favourites.uid;
-  const place = { name: location.name, country: location.country, lat: location.lat, lon: location.lon };
+  const place = {
+    name: location.name,
+    region: location.region,
+    country: location.country,
+    lat: location.lat,
+    lon: location.lon,
+  };
   const id = favouriteId(place.name, place.country);
   const isSaved = favourites.items.some((favourite) => favourite.id === id);
 

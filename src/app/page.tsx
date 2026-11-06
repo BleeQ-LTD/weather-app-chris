@@ -10,7 +10,6 @@ import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
 import LocationPrompt from "@/components/LocationPrompt";
-import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
@@ -260,6 +259,20 @@ function WeatherApp() {
     fetchWeather(`${favourite.lat},${favourite.lon}`, favourite.name);
   }
 
+    // Opening a favourite from the Favourites page (/?favourite=lagos_nigeria):
+  // once the favourites have loaded, show that place's weather, then tidy the address bar
+  const openedFavourite = useRef(false);
+  useEffect(() => {
+    if (openedFavourite.current || favourites.isLoading) return;
+    const id = new URLSearchParams(window.location.search).get("favourite");
+    if (!id) return;
+    const favourite = favourites.items.find((item) => item.id === id);
+    if (!favourite) return;
+    openedFavourite.current = true;
+    window.history.replaceState(null, "", "/");
+    pickFavourite(favourite);
+  }, [favourites.isLoading, favourites.items, pickFavourite]);
+
   // Short text for screen readers, announced whenever the state changes
   const announcement = {
     idle: "",
@@ -284,9 +297,6 @@ function WeatherApp() {
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
-
-      {/* Signed-in users' saved places (nothing shows for guests) */}
-      <FavouritesList favourites={favourites} onPick={pickFavourite} />
 
       <p role="status" className="sr-only">
         {announcement}
