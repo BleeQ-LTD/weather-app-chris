@@ -14,6 +14,7 @@ import { useFavourites } from "@/lib/useFavourites";
 import { useRouter } from "next/navigation";
 import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
+import LocationPrompt from "@/components/LocationPrompt";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -30,7 +31,6 @@ type ViewState =
       place?: Suggestion;
       searchText?: string; // set when place search failed, so "Try again" re-runs the search
     };
-const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
 function WeatherApp() {
@@ -198,10 +198,30 @@ function WeatherApp() {
     fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
 
-  function pickCity(city: string) {
-    setQuery(city);
-    handleSearch(city);
-  }
+  // Load the weather for the user's own position (from LocationPrompt).
+  // useCallback keeps it stable, so LocationPrompt doesn't re-ask on every render.
+  // Load the weather for the user's own position (from LocationPrompt).
+  // We ask our server for a proper place name first (e.g. "Lekki, Lagos"), because
+  // WeatherAPI labels coordinates with the nearest place in its own list, which can
+  // be a small locality nobody recognises. If naming fails, WeatherAPI's name is used.
+  const showMyLocation = useCallback(
+    async (lat: number, lon: number) => {
+      setQuery("");
+      const controller = startRequest();
+
+      let place: Suggestion | undefined;
+      try {
+        const response = await fetch(`/api/reverse?lat=${lat}&lon=${lon}`, { signal: controller.signal });
+        if (response.ok) place = (await response.json()) as Suggestion;
+      } catch {
+        // No proper name available: fall back to WeatherAPI's name below
+      }
+      if (!isCurrent(controller)) return; // the user searched for something else meanwhile
+
+      fetchWeather(`${lat},${lon}`, place ? formatPlace(place) : "your location", controller, place);
+    },
+    [fetchWeather]
+  );
 
   function pickFavourite(favourite: Favourite) {
     setQuery(favourite.name);
@@ -245,24 +265,7 @@ function WeatherApp() {
       </p>
 
       <section className="mt-10" aria-busy={view.status === "loading"}>
-        {view.status === "idle" && (
-          <div>
-            <p className="text-lg">Search for a place to see its weather.</p>
-            <p className="mt-4 text-sm text-muted">Or pick one:</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {QUICK_PICKS.map((city) => (
-                <button
-                  key={city}
-                  type="button"
-                  onClick={() => pickCity(city)}
-                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm hover:border-rain"
-                >
-                  {city}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+               {view.status === "idle" && <LocationPrompt onLocated={showMyLocation} />}
 
         {view.status === "loading" && (
           <div>
