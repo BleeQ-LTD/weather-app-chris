@@ -348,11 +348,10 @@ function WeatherApp() {
   );
 }
 
-// Decides what to show: a loading placeholder, the welcome screen, or the weather app
-  // Decides what to show. A signed-in user's profile must load before the app opens.
-  export default function Home() {
-    const authState = useAuth();
-    const profileState = useProfile();
+// Decides what to show. A signed-in user's profile must load before the app opens.
+export default function Home() {
+  const authState = useAuth();
+  const profileState = useProfile();
 
   if (authState.status === "checking") return <HomeLoading />;
 
@@ -360,27 +359,49 @@ function WeatherApp() {
   // when an account actually helps them (saving favourites), not before.
   if (authState.status === "signed-out" || authState.status === "guest") return <WeatherApp />;
 
-    // Signed in:
-    if (profileState.status === "ready") return <WeatherApp />;
-    if (profileState.status === "missing") return <GoToCompleteProfile />; // new Google user
-    if (profileState.status === "error") return <ProfileError onRetry={profileState.reload} />; // connection problem
-    return <HomeLoading />;
+  // Signed in:
+  if (profileState.status === "ready") return <WeatherApp />;
+  if (profileState.status === "missing") return <GoToCompleteProfile />; // new Google user
+  if (profileState.status === "error") {
+    return <ProfileError reason={profileState.reason} onRetry={profileState.reload} />;
   }
+  return <HomeLoading message="Loading your account…" />;
+}
 
-  // Firestore confirmed there's no profile, so send them to finish it
-  function GoToCompleteProfile() {
-    const router = useRouter();
-    useEffect(() => {
-      router.replace("/complete-profile");
-    }, [router]);
-    return <HomeLoading />;
-  }
+// Firestore confirmed there's no profile, so send them to finish it
+function GoToCompleteProfile() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/complete-profile");
+  }, [router]);
+  return <HomeLoading message="Setting up your account…" />;
+}
 
-// Placeholder shapes shown while we work out who the visitor is
-function HomeLoading() {
+// Placeholder shapes, with an explanation when there is something to wait for
+function HomeLoading({ message }: { message?: string }) {
+  const [isSlow, setIsSlow] = useState(false);
+
+  // If it's taking a while, say so instead of leaving people guessing
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setIsSlow(true), 4000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   return (
     <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16" aria-busy="true">
-      <p className="sr-only" role="status">Loading…</p>
+      {message ? (
+        <div role="status" className="mb-6">
+          <p className="text-muted">{message}</p>
+          {isSlow && (
+            <p className="mt-1 text-sm text-muted">
+              Still working on it. This can take a few seconds on a slow connection.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="sr-only" role="status">Loading…</p>
+      )}
       <div className="h-7 w-32 rounded bg-line motion-safe:animate-pulse" />
       <div className="mt-3 h-4 w-64 rounded bg-line motion-safe:animate-pulse" />
       <div className="mt-10 h-11 w-full rounded-md bg-line motion-safe:animate-pulse" />

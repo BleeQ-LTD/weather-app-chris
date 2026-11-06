@@ -11,11 +11,17 @@ vi.mock("@/components/AccountBar", () => ({
   default: () => null,
 }));
 
-// Pretend the visitor is a guest, so the weather page shows straight away
-// (instead of the welcome screen), without loading real Firebase
+// Pretend the visitor is a guest, so the weather page shows straight away,
+// without loading real Firebase
 vi.mock("@/components/AuthProvider", () => ({
   useAuth: () => ({ status: "guest", continueAsGuest: () => {}, leaveGuestMode: () => {} }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Guests have no profile to load
+vi.mock("@/components/ProfileProvider", () => ({
+  useProfile: () => ({ status: "no-user", reload: () => {}, profileSaved: () => {} }),
+  ProfileProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 afterEach(() => {
