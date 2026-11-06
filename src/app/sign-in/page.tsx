@@ -130,6 +130,9 @@ export default function SignInPage() {
         New here?{" "}
         <Link href="/sign-up" className="underline hover:text-ink">Create an account</Link>
       </p>
+      <p className="mt-3 text-sm">
+        <Link href="/" className="text-muted underline hover:text-ink">Continue without an account</Link>
+      </p>
     </main>
   );
 }
