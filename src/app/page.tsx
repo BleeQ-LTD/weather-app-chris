@@ -1,25 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
-import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
+import { formatPlace, matchesPlace, weatherQueryFor } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
-import AccountBar from "@/components/AccountBar";
 import { useAuth } from "@/components/AuthProvider";
+import { useProfile } from "@/components/ProfileProvider";
+import ProfileError from "@/components/ProfileError";
+import LocationPrompt from "@/components/LocationPrompt";
 import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
-import { useRouter } from "next/navigation";
-import { useProfile } from "@/components/ProfileProvider";
-import ProfileError from "@/components/ProfileError";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
   | { status: "idle" }
   | { status: "loading"; query: string }
-  | { status: "choose"; query: string; options: Suggestion[] }
   | { status: "success"; data: WeatherData }
   | { status: "not-found"; message: string }
   | {
@@ -30,7 +29,7 @@ type ViewState =
       place?: Suggestion;
       searchText?: string; // set when place search failed, so "Try again" re-runs the search
     };
-const QUICK_PICKS = ["Lagos", "Abuja", "Accra", "London"];
+
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
 function WeatherApp() {
@@ -56,7 +55,7 @@ function WeatherApp() {
     return activeRequest.current === controller && !controller.signal.aborted;
   }
 
-  // Step 2: get the weather.
+  // Get the weather.
   // apiQuery is what we send ("Lagos" or "6.3350,5.6037");
   // label is what the user sees while loading ("Edo, Nigeria");
   // place is the place the user picked, if any. Its name is shown instead of
@@ -130,7 +129,8 @@ function WeatherApp() {
     []
   );
 
-  // Step 1: when Search is pressed, check how many places match first
+  // When Search is pressed: find matching places, then go straight to the best one.
+  // To choose a different place, people pick from the suggestions while typing.
   const handleSearch = useCallback(
     async (text: string) => {
       // Too short to search: go straight to the weather lookup
@@ -153,8 +153,6 @@ function WeatherApp() {
         if (!isCurrent(controller)) return; // replaced while the body was arriving
       } catch {
         if (!isCurrent(controller)) return;
-        // If the search check fails, fall back to the old behaviour:
-        // let WeatherAPI pick its best match for the typed text
         // Don't fall back to WeatherAPI's free-text matching: it doesn't know
         // places like Edo State and guesses (e.g. "Edo, Nigeria" -> Pocatello,
         // USA). An honest error is better than weather for the wrong place.
@@ -168,40 +166,63 @@ function WeatherApp() {
         return;
       }
 
-      if (matches.length === 0) {
+      // The search service sometimes returns places unrelated to what was typed
+      // (e.g. an airport in Turkey for "edo"), so keep only real matches
+      const matching = matches.filter((place) => matchesPlace(text, place));
+
+      if (matching.length === 0) {
         setView({
           status: "not-found",
-          message: `We couldn't find "${text}". Check the spelling or try a nearby city.`,
+          message: `We couldn't find "${text}". Check the spelling, or pick one of the suggestions as you type.`,
         });
         inputRef.current?.select();
         return;
       }
 
-      // One match that really is what was typed: go straight to its weather.
-      // A single match that looks unrelated (like "edo" -> an airport in
-      // Turkey) falls through to the "did you mean" screen instead.
-      if (matches.length === 1 && matchesPlace(text, matches[0])) {
-        const [place] = matches;
-        fetchWeather(weatherQueryFor(place), formatPlace(place), controller, place);
-        return;
-      }
-
-      // More than one match, or one doubtful match: let the user choose
-      setView({ status: "choose", query: text, options: matches });
+      const [best] = matching;
+      setQuery(formatPlace(best));
+      fetchWeather(weatherQueryFor(best), formatPlace(best), controller, best);
     },
     [fetchWeather]
   );
 
+  // A place picked from the suggestions
   function choosePlace(place: Suggestion) {
     const label = formatPlace(place);
     setQuery(label);
     fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
 
-  function pickCity(city: string) {
-    setQuery(city);
-    handleSearch(city);
+  // The search box's × button: cancel anything loading and go back to the start
+  function clearSearch() {
+    activeRequest.current?.abort();
+    setQuery("");
+    setView({ status: "idle" });
   }
+
+  // Load the weather for the user's own position (from LocationPrompt).
+  // We ask our server for a proper place name first (e.g. "Eti Osa, Lagos"), because
+  // WeatherAPI labels coordinates with the nearest place in its own list, which can
+  // be a small locality nobody recognises. If naming fails, WeatherAPI's name is used.
+  // useCallback keeps it stable, so LocationPrompt doesn't re-ask on every render.
+  const showMyLocation = useCallback(
+    async (lat: number, lon: number) => {
+      setQuery("");
+      const controller = startRequest();
+
+      let place: Suggestion | undefined;
+      try {
+        const response = await fetch(`/api/reverse?lat=${lat}&lon=${lon}`, { signal: controller.signal });
+        if (response.ok) place = (await response.json()) as Suggestion;
+      } catch {
+        // No proper name available: fall back to WeatherAPI's name below
+      }
+      if (!isCurrent(controller)) return; // the user searched for something else meanwhile
+
+      fetchWeather(`${lat},${lon}`, place ? formatPlace(place) : "your location", controller, place);
+    },
+    [fetchWeather]
+  );
 
   function pickFavourite(favourite: Favourite) {
     setQuery(favourite.name);
@@ -212,32 +233,22 @@ function WeatherApp() {
   const announcement = {
     idle: "",
     loading: view.status === "loading" ? `Loading weather for ${view.query}` : "",
-    choose:
-      view.status === "choose"
-        ? view.options.length === 1
-          ? `No exact match for ${view.query}. Did you mean ${formatPlace(view.options[0])}?`
-          : `${view.options.length} places match ${view.query}. Choose one.`
-        : "",
     success: view.status === "success" ? `Showing weather for ${view.data.location.name}` : "",
     "not-found": view.status === "not-found" ? view.message : "",
     error: view.status === "error" ? view.message : "",
   }[view.status];
 
   return (
-    <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Weather</h1>
-          <p className="text-muted">Current conditions and a 3-day forecast.</p>
-        </div>
-        <AccountBar />
-      </header>
+    <main className="mx-auto w-full max-w-xl px-5 py-8 sm:py-10">
+      {/* The visible app name is in the top nav; this heading is for screen readers */}
+      <h1 className="sr-only">Weather</h1>
 
       <SearchForm
         value={query}
         onChange={setQuery}
         onSearch={handleSearch}
         onSelectSuggestion={choosePlace}
+        onClear={clearSearch}
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
@@ -250,24 +261,7 @@ function WeatherApp() {
       </p>
 
       <section className="mt-10" aria-busy={view.status === "loading"}>
-        {view.status === "idle" && (
-          <div>
-            <p className="text-lg">Search for a place to see its weather.</p>
-            <p className="mt-4 text-sm text-muted">Or pick one:</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {QUICK_PICKS.map((city) => (
-                <button
-                  key={city}
-                  type="button"
-                  onClick={() => pickCity(city)}
-                  className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm hover:border-rain"
-                >
-                  {city}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {view.status === "idle" && <LocationPrompt onLocated={showMyLocation} />}
 
         {view.status === "loading" && (
           <div>
@@ -277,40 +271,6 @@ function WeatherApp() {
               <div className="h-16 w-56 rounded bg-line" />
               <div className="h-20 w-full rounded bg-line" />
             </div>
-          </div>
-        )}
-
-        {view.status === "choose" && (
-          <div className="border-l-4 border-rain pl-4">
-            <h2 className="font-semibold">
-              {view.options.length === 1
-                ? <>No exact match for &ldquo;{view.query}&rdquo;</>
-                : <>More than one place matches &ldquo;{view.query}&rdquo;</>}
-            </h2>
-            <p className="mt-1 text-muted">
-              {view.options.length === 1
-                ? "Did you mean this place? Or add a country, for example Edo, Nigeria."
-                : "Choose the one you mean."}
-            </p>
-            <ul className="mt-3 space-y-2">
-              {view.options.map((place) => {
-                const rest = formatPlace(place).slice(place.name.length + 2);
-                const tag = kindLabel(place.kind);
-                return (
-                  <li key={place.id}>
-                    <button
-                      type="button"
-                      onClick={() => choosePlace(place)}
-                      className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-rain"
-                    >
-                      <span className="font-medium">{place.name}</span>
-                      {rest && <span className="text-muted">, {rest}</span>}
-                      {tag && <span className="ml-2 text-sm text-muted">· {tag}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
           </div>
         )}
 
@@ -346,27 +306,14 @@ function WeatherApp() {
           />
         )}
       </section>
-
-      <footer className="mt-16 text-sm text-muted">
-        Weather data by{" "}
-        <a href="https://www.weatherapi.com/" className="underline hover:text-ink">
-          WeatherAPI.com
-        </a>. Place search powered by{" "}
-        <a href="https://www.geoapify.com/" className="underline hover:text-ink">
-          Geoapify
-        </a>
-        {" "}(© OpenStreetMap contributors).
-        <p className="mt-2">v1.1.1</p>
-      </footer>
     </main>
   );
 }
 
-// Decides what to show: a loading placeholder, the welcome screen, or the weather app
-  // Decides what to show. A signed-in user's profile must load before the app opens.
-  export default function Home() {
-    const authState = useAuth();
-    const profileState = useProfile();
+// Decides what to show. A signed-in user's profile must load before the app opens.
+export default function Home() {
+  const authState = useAuth();
+  const profileState = useProfile();
 
   if (authState.status === "checking") return <HomeLoading />;
 
@@ -374,27 +321,49 @@ function WeatherApp() {
   // when an account actually helps them (saving favourites), not before.
   if (authState.status === "signed-out" || authState.status === "guest") return <WeatherApp />;
 
-    // Signed in:
-    if (profileState.status === "ready") return <WeatherApp />;
-    if (profileState.status === "missing") return <GoToCompleteProfile />; // new Google user
-    if (profileState.status === "error") return <ProfileError onRetry={profileState.reload} />; // connection problem
-    return <HomeLoading />;
+  // Signed in:
+  if (profileState.status === "ready") return <WeatherApp />;
+  if (profileState.status === "missing") return <GoToCompleteProfile />; // new Google user
+  if (profileState.status === "error") {
+    return <ProfileError reason={profileState.reason} onRetry={profileState.reload} />;
   }
+  return <HomeLoading message="Loading your account…" />;
+}
 
-  // Firestore confirmed there's no profile, so send them to finish it
-  function GoToCompleteProfile() {
-    const router = useRouter();
-    useEffect(() => {
-      router.replace("/complete-profile");
-    }, [router]);
-    return <HomeLoading />;
-  }
+// Firestore confirmed there's no profile, so send them to finish it
+function GoToCompleteProfile() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/complete-profile");
+  }, [router]);
+  return <HomeLoading message="Setting up your account…" />;
+}
 
-// Placeholder shapes shown while we work out who the visitor is
-function HomeLoading() {
+// Placeholder shapes, with an explanation when there is something to wait for
+function HomeLoading({ message }: { message?: string }) {
+  const [isSlow, setIsSlow] = useState(false);
+
+  // If it's taking a while, say so instead of leaving people guessing
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setIsSlow(true), 4000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   return (
     <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16" aria-busy="true">
-      <p className="sr-only" role="status">Loading…</p>
+      {message ? (
+        <div role="status" className="mb-6">
+          <p className="text-muted">{message}</p>
+          {isSlow && (
+            <p className="mt-1 text-sm text-muted">
+              Still working on it. This can take a few seconds on a slow connection.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="sr-only" role="status">Loading…</p>
+      )}
       <div className="h-7 w-32 rounded bg-line motion-safe:animate-pulse" />
       <div className="mt-3 h-4 w-64 rounded bg-line motion-safe:animate-pulse" />
       <div className="mt-10 h-11 w-full rounded-md bg-line motion-safe:animate-pulse" />
