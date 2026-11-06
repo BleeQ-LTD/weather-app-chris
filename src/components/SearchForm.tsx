@@ -14,12 +14,34 @@ import { Suggestion, formatPlace, kindLabel, matchesPlace } from "@/lib/weather"
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
 
+// Example places shown in the empty search box when we don't know where the
+// user is: one after another, from different continents
+const PLACEHOLDER_PLACES = [
+  "Lagos, Nigeria",
+  "London, United Kingdom",
+  "New York, United States",
+  "Nairobi, Kenya",
+  "Tokyo, Japan",
+  "São Paulo, Brazil",
+];
+const PLACEHOLDER_INTERVAL_MS = 2500;
+
+// Where the user is, if they shared their location (from the location card).
+// Used to show nearby examples and to rank nearby places first.
+export interface NearbyHint {
+  lat: number;
+  lon: number;
+  place?: Suggestion; // e.g. Eti Osa, Lagos, Nigeria
+  examples?: string[]; // towns and areas near the user, e.g. "Ikeja, Lagos"
+}
+
 interface SearchFormProps {
   value: string;
   onChange: (value: string) => void;
   onSearch: (location: string) => void;
   onSelectSuggestion: (suggestion: Suggestion) => void;
   onClear: () => void; // the × button: empty the box and go back to the start
+  near?: NearbyHint;
   isLoading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
 }
@@ -30,6 +52,7 @@ export default function SearchForm({
   onSearch,
   onSelectSuggestion,
   onClear,
+  near,
   isLoading,
   inputRef,
 }: SearchFormProps) {
@@ -44,10 +67,39 @@ export default function SearchForm({
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [noMatchesFor, setNoMatchesFor] = useState("");
+  const [isFetching, setIsFetching] = useState(false); // waiting for suggestions
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRequest = useRef<AbortController | null>(null);
   const cache = useRef(new Map<string, Suggestion[]>());
+
+  // Examples for the empty box: towns and areas near the user if we know where
+  // they are; failing that, their own area and state; otherwise well-known places worldwide
+  const nearbyExamples =
+    near?.examples && near.examples.length > 0
+      ? near.examples
+      : near?.place
+        ? [
+            formatPlace(near.place),
+            ...(near.place.region ? [`${near.place.region}, ${near.place.country}`] : []),
+          ]
+        : [];
+  const examples = nearbyExamples.length > 0 ? nearbyExamples : PLACEHOLDER_PLACES;
+
+  // Only rough coordinates are sent (2 decimal places, about 1 km), which is
+  // enough to rank nearby places first
+  const nearParams = near ? `&lat=${near.lat.toFixed(2)}&lon=${near.lon.toFixed(2)}` : "";
+
+  // Rotate the example place in the empty box. Stops while the user has typed something.
+  useEffect(() => {
+    if (value) return;
+    const timer = setInterval(
+      () => setPlaceholderIndex((index) => index + 1),
+      PLACEHOLDER_INTERVAL_MS
+    );
+    return () => clearInterval(timer);
+  }, [value]);
 
   // Stop timers and requests if the component unmounts
   useEffect(() => {
@@ -60,6 +112,7 @@ export default function SearchForm({
   function cancelPending() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     pendingRequest.current?.abort();
+    setIsFetching(false);
   }
 
   function closeList() {
@@ -72,6 +125,7 @@ export default function SearchForm({
     // what was typed (e.g. an airport in Turkey for "edo"). Only show places whose
     // name, region or country actually contains the typed words.
     const relevant = results.filter((place) => matchesPlace(term, place));
+    setIsFetching(false);
     setSuggestions(relevant);
     setActiveIndex(-1);
     setIsOpen(relevant.length > 0);
@@ -79,7 +133,7 @@ export default function SearchForm({
   }
 
   async function fetchSuggestions(term: string) {
-    const key = term.toLowerCase();
+    const key = `${term.toLowerCase()}${nearParams}`;
     const cached = cache.current.get(key);
     if (cached) {
       showResults(term, cached);
@@ -90,7 +144,7 @@ export default function SearchForm({
     pendingRequest.current = controller;
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(term)}`, {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(term)}${nearParams}`, {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
@@ -105,6 +159,7 @@ export default function SearchForm({
       if (controller.signal.aborted) return; // replaced by newer typing
       // Suggestions are a bonus: if they fail, hide them quietly.
       // The user can still press Search.
+      setIsFetching(false);
       setSuggestions([]);
       closeList();
     }
@@ -124,6 +179,9 @@ export default function SearchForm({
     const term = next.trim();
     if (term.length < MIN_CHARS) return;
 
+    // Show the spinner from the moment we start waiting, so slow connections
+    // don't look like nothing is happening
+    setIsFetching(true);
     debounceTimer.current = setTimeout(() => fetchSuggestions(term), DEBOUNCE_MS);
   }
 
@@ -206,10 +264,6 @@ export default function SearchForm({
       <label id={labelId} htmlFor={inputId} className="block font-medium">
         City or town
       </label>
-      <p id={hintId} className="text-sm text-muted">
-        Start typing to see matching places, for example Lagos or Nairobi.
-      </p>
-
       <div className="mt-2 flex gap-2">
         <div className="relative min-w-0 flex-1">
           <input
@@ -228,6 +282,7 @@ export default function SearchForm({
             aria-describedby={describedBy}
             aria-invalid={validationError ? true : undefined}
             value={value}
+            placeholder={`Try "${examples[placeholderIndex % examples.length]}"`}
             onChange={(event) => handleInput(event.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={() => {
@@ -236,6 +291,15 @@ export default function SearchForm({
             }}
             className="w-full rounded-md border border-line bg-surface py-2.5 pl-3 pr-10 text-base text-ink aria-invalid:border-alert"
           />
+
+          {isFetching && (
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-line border-t-rain motion-safe:animate-spin ${
+                value ? "right-10" : "right-3"
+              }`}
+            />
+          )}
 
           {value && (
             <button
@@ -300,6 +364,11 @@ export default function SearchForm({
         </button>
       </div>
 
+      {/* Helper text sits under the box, and uses the same format as the results */}
+      <p id={hintId} className="mt-1.5 text-sm text-muted">
+        Start typing, then pick a place from the list, for example Lagos, Nigeria.
+      </p>
+
       {validationError && (
         <p id={errorId} className="mt-2 text-sm font-medium text-alert">
           {validationError}
@@ -314,7 +383,9 @@ export default function SearchForm({
 
       {/* Tells screen-reader users suggestions appeared */}
       <p role="status" className="sr-only">
-        {listVisible
+        {isFetching
+          ? "Looking for places…"
+          : listVisible
           ? `${suggestions.length} ${suggestions.length === 1 ? "suggestion" : "suggestions"}. Use up and down arrows to choose.`
           : ""}
       </p>
