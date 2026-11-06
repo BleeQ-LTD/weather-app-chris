@@ -12,7 +12,7 @@ import ProfileError from "@/components/ProfileError";
 import LocationPrompt from "@/components/LocationPrompt";
 import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
-import type { Favourite } from "@/lib/favourites";
+import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
 
@@ -255,9 +255,20 @@ function WeatherApp() {
     [fetchWeather]
   );
 
+  // Open a saved place with the name, region and country it was saved with,
+  // so the heading and search box match the favourite ("Lagos, Nigeria")
   function pickFavourite(favourite: Favourite) {
-    setQuery(favourite.name);
-    fetchWeather(`${favourite.lat},${favourite.lon}`, favourite.name);
+    const label = favouriteLabel(favourite);
+    setQuery(label);
+    fetchWeather(`${favourite.lat},${favourite.lon}`, label, undefined, {
+      id: favourite.id,
+      name: favourite.name,
+      region: favourite.region,
+      country: favourite.country,
+      lat: favourite.lat,
+      lon: favourite.lon,
+      kind: "city",
+    });
   }
 
   // Short text for screen readers, announced whenever the state changes

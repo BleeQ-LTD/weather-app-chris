@@ -1,8 +1,7 @@
 "use client";
 
-import { removeFavourite, type Favourite } from "@/lib/favourites";
+import { favouriteLabel, removeFavourite, type Favourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
-import Link from "next/link";
 
 // "Your favourites" row under the search box, for signed-in users
 export default function FavouritesList({
@@ -13,8 +12,6 @@ export default function FavouritesList({
   onPick: (favourite: Favourite) => void;
 }) {
   const { uid, items, isLoading, isSlow, failed, retry } = favourites;
-  // Visitors who aren't signed in: explain what an account gives THEM
-  // nav's "Create account" and by "Sign in to save" on the weather results.
   if (uid === null) return null;
 
   if (isLoading) {
@@ -58,10 +55,14 @@ export default function FavouritesList({
     <section className="mt-6" aria-label="Your favourites">
       <p className="text-sm text-muted">Your favourites</p>
       <ul className="mt-2 flex flex-wrap gap-2">
-        {items.map((favourite) => (
+        {items.map((favourite) => {
+          // "Lagos, Nigeria": the name stands out, the rest tells same-named places apart
+          const rest = favouriteLabel(favourite).slice(favourite.name.length + 2);
+          return (
           <li key={favourite.id} className="flex items-center rounded-full border border-line bg-surface text-sm">
             <button type="button" onClick={() => onPick(favourite)} className="py-1.5 pl-4 pr-2 hover:text-rain">
               {favourite.name}
+              {rest && <span className="text-muted">, {rest}</span>}
             </button>
             <button
               type="button"
@@ -70,13 +71,14 @@ export default function FavouritesList({
                   console.error("[favourites] Could not remove favourite:", err)
                 )
               }
-              aria-label={`Remove ${favourite.name} from favourites`}
+              aria-label={`Remove ${favouriteLabel(favourite)} from favourites`}
               className="py-1.5 pl-1 pr-3 text-muted hover:text-ink"
             >
               ×
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );
