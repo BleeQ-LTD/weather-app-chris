@@ -181,6 +181,9 @@ export default function SignUpPage() {
         Already have an account?{" "}
         <Link href="/sign-in" className="underline hover:text-ink">Sign in</Link>
       </p>
+      <p className="mt-3 text-sm">
+        <Link href="/" className="text-muted underline hover:text-ink">Continue without an account</Link>
+      </p>
     </main>
   );
 }
