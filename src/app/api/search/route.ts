@@ -36,7 +36,7 @@ function stripStateSuffix(name: string) {
 // place we can show (wrong type, or missing fields).
 function toSuggestion(item: unknown): Suggestion | null {
   if (!isRecord(item)) return null;
-  const { result_type, lat, lon, country, state, city, county, name, place_id } = item;
+  const { result_type, lat, lon, country, state, city, county, suburb, district, name, place_id } = item;
 
   if (!isString(result_type) || !isNumber(lat) || !isNumber(lon) || !isString(country)) {
     return null;
@@ -56,8 +56,13 @@ function toSuggestion(item: unknown): Suggestion | null {
     placeName = isString(city) ? city : isString(name) ? name : "";
     region = stateName;
   } else {
-    placeName = isString(name) ? name : isString(county) ? county : "";
-    region = stateName;
+    // Use the name of what this result actually IS: the suburb "Jabi", not the
+    // local government area it sits in ("Municipal Area Council")
+    const ownName =
+      result_type === "suburb" ? suburb : result_type === "district" ? district : county;
+    placeName = isString(ownName) ? ownName : isString(name) ? name : isString(county) ? county : "";
+    // Underneath: the city if there is one ("Abuja"), otherwise the state
+    region = isString(city) && city !== placeName ? city : stateName;
   }
   if (!placeName) return null;
 

@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Suggestion, formatPlace, kindLabel } from "@/lib/weather";
+import { Suggestion, formatPlace, kindLabel, matchesPlace } from "@/lib/weather";
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
@@ -19,6 +19,7 @@ interface SearchFormProps {
   onChange: (value: string) => void;
   onSearch: (location: string) => void;
   onSelectSuggestion: (suggestion: Suggestion) => void;
+  onClear: () => void; // the × button: empty the box and go back to the start
   isLoading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
 }
@@ -28,6 +29,7 @@ export default function SearchForm({
   onChange,
   onSearch,
   onSelectSuggestion,
+  onClear,
   isLoading,
   inputRef,
 }: SearchFormProps) {
@@ -66,10 +68,14 @@ export default function SearchForm({
   }
 
   function showResults(term: string, results: Suggestion[]) {
-    setSuggestions(results);
+    // The search service sometimes returns places that have nothing to do with
+    // what was typed (e.g. an airport in Turkey for "edo"). Only show places whose
+    // name, region or country actually contains the typed words.
+    const relevant = results.filter((place) => matchesPlace(term, place));
+    setSuggestions(relevant);
     setActiveIndex(-1);
-    setIsOpen(results.length > 0);
-    setNoMatchesFor(results.length === 0 ? term : "");
+    setIsOpen(relevant.length > 0);
+    setNoMatchesFor(relevant.length === 0 ? term : "");
   }
 
   async function fetchSuggestions(term: string) {
@@ -127,6 +133,18 @@ export default function SearchForm({
     setSuggestions([]);
     closeList();
     onSelectSuggestion(suggestion);
+  }
+
+  // The × button: empty the box, hide suggestions and messages, and let the page
+  // go back to where it started
+  function clearSearch() {
+    cancelPending();
+    setSuggestions([]);
+    closeList();
+    setNoMatchesFor("");
+    setValidationError("");
+    onClear();
+    inputRef.current?.focus();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -216,8 +234,21 @@ export default function SearchForm({
               cancelPending();
               closeList();
             }}
-            className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base text-ink aria-invalid:border-alert"
+            className="w-full rounded-md border border-line bg-surface py-2.5 pl-3 pr-10 text-base text-ink aria-invalid:border-alert"
           />
+
+          {value && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              // mousedown fires before the input's blur, so the click still registers
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clearSearch}
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-lg leading-none text-muted hover:bg-line hover:text-ink"
+            >
+              ×
+            </button>
+          )}
 
           <ul
             id={listId}

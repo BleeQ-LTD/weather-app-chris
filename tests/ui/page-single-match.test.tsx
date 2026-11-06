@@ -20,7 +20,8 @@ function resultsSection(container: HTMLElement) {
 }
 
 describe("Home page with a single, unrelated match", () => {
-  it('asks "did you mean" instead of loading the weather for "edo"', async () => {
+
+    it('shows "not found" instead of an unrelated place for "edo"', async () => {
     const fetchMock = vi.fn((url: string) => {
       if (url.startsWith("/api/search")) return Promise.resolve(jsonResponse([airport]));
       return Promise.reject(new Error(`Unexpected request: ${url}`));
@@ -33,10 +34,10 @@ describe("Home page with a single, unrelated match", () => {
     await user.click(screen.getByRole("button", { name: "Search" }));
 
     const section = resultsSection(container);
-    expect(await section.findByText(/No exact match for/)).toBeInTheDocument();
+    expect(await section.findByText(/We couldn't find "edo"/)).toBeInTheDocument();
     expect(
-      section.getByRole("button", { name: /Balikesir Koca Seyit Airport/ })
-    ).toBeInTheDocument();
+      section.queryByRole("button", { name: /Balikesir Koca Seyit Airport/ })
+    ).not.toBeInTheDocument();
     const weatherCalls = fetchMock.mock.calls.filter(([url]) => url.startsWith("/api/weather"));
     expect(weatherCalls).toHaveLength(0);
   });

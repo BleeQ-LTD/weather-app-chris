@@ -1,26 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
-import { formatPlace, kindLabel, matchesPlace, weatherQueryFor } from "@/lib/weather";
+import { formatPlace, matchesPlace, weatherQueryFor } from "@/lib/weather";
 import type { Suggestion, WeatherData, WeatherErrorBody } from "@/lib/weather";
-import AccountBar from "@/components/AccountBar";
 import { useAuth } from "@/components/AuthProvider";
+import { useProfile } from "@/components/ProfileProvider";
+import ProfileError from "@/components/ProfileError";
+import LocationPrompt from "@/components/LocationPrompt";
 import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
-import { useRouter } from "next/navigation";
-import { useProfile } from "@/components/ProfileProvider";
-import ProfileError from "@/components/ProfileError";
-import LocationPrompt from "@/components/LocationPrompt";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
   | { status: "idle" }
   | { status: "loading"; query: string }
-  | { status: "choose"; query: string; options: Suggestion[] }
   | { status: "success"; data: WeatherData }
   | { status: "not-found"; message: string }
   | {
@@ -31,6 +29,7 @@ type ViewState =
       place?: Suggestion;
       searchText?: string; // set when place search failed, so "Try again" re-runs the search
     };
+
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 
 function WeatherApp() {
@@ -56,7 +55,7 @@ function WeatherApp() {
     return activeRequest.current === controller && !controller.signal.aborted;
   }
 
-  // Step 2: get the weather.
+  // Get the weather.
   // apiQuery is what we send ("Lagos" or "6.3350,5.6037");
   // label is what the user sees while loading ("Edo, Nigeria");
   // place is the place the user picked, if any. Its name is shown instead of
@@ -130,7 +129,8 @@ function WeatherApp() {
     []
   );
 
-  // Step 1: when Search is pressed, check how many places match first
+  // When Search is pressed: find matching places, then go straight to the best one.
+  // To choose a different place, people pick from the suggestions while typing.
   const handleSearch = useCallback(
     async (text: string) => {
       // Too short to search: go straight to the weather lookup
@@ -153,8 +153,6 @@ function WeatherApp() {
         if (!isCurrent(controller)) return; // replaced while the body was arriving
       } catch {
         if (!isCurrent(controller)) return;
-        // If the search check fails, fall back to the old behaviour:
-        // let WeatherAPI pick its best match for the typed text
         // Don't fall back to WeatherAPI's free-text matching: it doesn't know
         // places like Edo State and guesses (e.g. "Edo, Nigeria" -> Pocatello,
         // USA). An honest error is better than weather for the wrong place.
@@ -168,42 +166,45 @@ function WeatherApp() {
         return;
       }
 
-      if (matches.length === 0) {
+      // The search service sometimes returns places unrelated to what was typed
+      // (e.g. an airport in Turkey for "edo"), so keep only real matches
+      const matching = matches.filter((place) => matchesPlace(text, place));
+
+      if (matching.length === 0) {
         setView({
           status: "not-found",
-          message: `We couldn't find "${text}". Check the spelling or try a nearby city.`,
+          message: `We couldn't find "${text}". Check the spelling, or pick one of the suggestions as you type.`,
         });
         inputRef.current?.select();
         return;
       }
 
-      // One match that really is what was typed: go straight to its weather.
-      // A single match that looks unrelated (like "edo" -> an airport in
-      // Turkey) falls through to the "did you mean" screen instead.
-      if (matches.length === 1 && matchesPlace(text, matches[0])) {
-        const [place] = matches;
-        fetchWeather(weatherQueryFor(place), formatPlace(place), controller, place);
-        return;
-      }
-
-      // More than one match, or one doubtful match: let the user choose
-      setView({ status: "choose", query: text, options: matches });
+      const [best] = matching;
+      setQuery(formatPlace(best));
+      fetchWeather(weatherQueryFor(best), formatPlace(best), controller, best);
     },
     [fetchWeather]
   );
 
+  // A place picked from the suggestions
   function choosePlace(place: Suggestion) {
     const label = formatPlace(place);
     setQuery(label);
     fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
 
+  // The search box's × button: cancel anything loading and go back to the start
+  function clearSearch() {
+    activeRequest.current?.abort();
+    setQuery("");
+    setView({ status: "idle" });
+  }
+
   // Load the weather for the user's own position (from LocationPrompt).
-  // useCallback keeps it stable, so LocationPrompt doesn't re-ask on every render.
-  // Load the weather for the user's own position (from LocationPrompt).
-  // We ask our server for a proper place name first (e.g. "Lekki, Lagos"), because
+  // We ask our server for a proper place name first (e.g. "Eti Osa, Lagos"), because
   // WeatherAPI labels coordinates with the nearest place in its own list, which can
   // be a small locality nobody recognises. If naming fails, WeatherAPI's name is used.
+  // useCallback keeps it stable, so LocationPrompt doesn't re-ask on every render.
   const showMyLocation = useCallback(
     async (lat: number, lon: number) => {
       setQuery("");
@@ -232,12 +233,6 @@ function WeatherApp() {
   const announcement = {
     idle: "",
     loading: view.status === "loading" ? `Loading weather for ${view.query}` : "",
-    choose:
-      view.status === "choose"
-        ? view.options.length === 1
-          ? `No exact match for ${view.query}. Did you mean ${formatPlace(view.options[0])}?`
-          : `${view.options.length} places match ${view.query}. Choose one.`
-        : "",
     success: view.status === "success" ? `Showing weather for ${view.data.location.name}` : "",
     "not-found": view.status === "not-found" ? view.message : "",
     error: view.status === "error" ? view.message : "",
@@ -245,14 +240,15 @@ function WeatherApp() {
 
   return (
     <main className="mx-auto w-full max-w-xl px-5 py-8 sm:py-10">
-         {/* The visible app name is in the top nav; this heading is for screen readers */}
-         <h1 className="sr-only">Weather</h1>
+      {/* The visible app name is in the top nav; this heading is for screen readers */}
+      <h1 className="sr-only">Weather</h1>
 
       <SearchForm
         value={query}
         onChange={setQuery}
         onSearch={handleSearch}
         onSelectSuggestion={choosePlace}
+        onClear={clearSearch}
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
@@ -265,7 +261,7 @@ function WeatherApp() {
       </p>
 
       <section className="mt-10" aria-busy={view.status === "loading"}>
-               {view.status === "idle" && <LocationPrompt onLocated={showMyLocation} />}
+        {view.status === "idle" && <LocationPrompt onLocated={showMyLocation} />}
 
         {view.status === "loading" && (
           <div>
@@ -275,40 +271,6 @@ function WeatherApp() {
               <div className="h-16 w-56 rounded bg-line" />
               <div className="h-20 w-full rounded bg-line" />
             </div>
-          </div>
-        )}
-
-        {view.status === "choose" && (
-          <div className="border-l-4 border-rain pl-4">
-            <h2 className="font-semibold">
-              {view.options.length === 1
-                ? <>No exact match for &ldquo;{view.query}&rdquo;</>
-                : <>More than one place matches &ldquo;{view.query}&rdquo;</>}
-            </h2>
-            <p className="mt-1 text-muted">
-              {view.options.length === 1
-                ? "Did you mean this place? Or add a country, for example Edo, Nigeria."
-                : "Choose the one you mean."}
-            </p>
-            <ul className="mt-3 space-y-2">
-              {view.options.map((place) => {
-                const rest = formatPlace(place).slice(place.name.length + 2);
-                const tag = kindLabel(place.kind);
-                return (
-                  <li key={place.id}>
-                    <button
-                      type="button"
-                      onClick={() => choosePlace(place)}
-                      className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-rain"
-                    >
-                      <span className="font-medium">{place.name}</span>
-                      {rest && <span className="text-muted">, {rest}</span>}
-                      {tag && <span className="ml-2 text-sm text-muted">· {tag}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
           </div>
         )}
 
