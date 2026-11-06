@@ -14,6 +14,7 @@ import FavouritesList from "@/components/FavouritesList";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
+import type { NearbyHint } from "@/components/SearchForm";
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -35,6 +36,8 @@ const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 function WeatherApp() {
   const [query, setQuery] = useState("");
   const favourites = useFavourites();
+    // Where the user is, once they share their location (for nearby search examples)
+  const [near, setNear] = useState<NearbyHint | undefined>(undefined);
   const [view, setView] = useState<ViewState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
@@ -217,6 +220,20 @@ function WeatherApp() {
       } catch {
         // No proper name available: fall back to WeatherAPI's name below
       }
+      setNear({ lat, lon, place }); // lets search show and rank places near the user
+
+      // In the background, load towns and areas nearby to use as search examples
+      fetch(`/api/nearby?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { places?: string[] } | null) => {
+          const places = body?.places;
+          if (places && places.length > 0) {
+            setNear((current) => (current ? { ...current, examples: places } : current));
+          }
+        })
+        .catch(() => {
+          // Not essential: the examples fall back to the user's own area and state
+        });
       if (!isCurrent(controller)) return; // the user searched for something else meanwhile
 
       fetchWeather(`${lat},${lon}`, place ? formatPlace(place) : "your location", controller, place);
@@ -244,6 +261,7 @@ function WeatherApp() {
       <h1 className="sr-only">Weather</h1>
 
       <SearchForm
+        near={near}
         value={query}
         onChange={setQuery}
         onSearch={handleSearch}
