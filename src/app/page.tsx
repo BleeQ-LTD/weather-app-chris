@@ -20,7 +20,7 @@ import type { NearbyHint } from "@/components/SearchForm";
 type ViewState =
   | { status: "idle" }
   | { status: "loading"; query: string }
-  | { status: "success"; data: WeatherData }
+  | { status: "success"; data: WeatherData; fetchedAt: number }
   | { status: "not-found"; message: string }
   | {
       status: "error";
@@ -41,7 +41,9 @@ function WeatherApp() {
   const [view, setView] = useState<ViewState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
-
+    // The last weather request, so Refresh can repeat it
+  const lastRequest = useRef<{ apiQuery: string; label: string; place?: Suggestion } | null>(null);
+  
   // Cancel any request still in flight so an older, slower response
   // can't overwrite a newer one
   function startRequest() {
@@ -68,9 +70,11 @@ function WeatherApp() {
       apiQuery: string,
       label: string,
       controller = startRequest(),
-      place?: Suggestion
+      place?: Suggestion,
+      keepCurrent = false // true for Refresh: keep showing the weather while new data loads
     ) => {
-      setView({ status: "loading", query: label });
+      lastRequest.current = { apiQuery, label, place };
+      if (!keepCurrent) setView({ status: "loading", query: label });
 
       try {
         const response = await fetch(
@@ -86,6 +90,7 @@ function WeatherApp() {
           const data = body as WeatherData;
           setView({
             status: "success",
+            fetchedAt: Date.now(),
             data: place
               ? {
                   ...data,
@@ -195,6 +200,15 @@ function WeatherApp() {
     setQuery(label);
     fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
+
+    // "↻ Refresh" (and the automatic 15-minute refresh): repeat the last request
+  // without blanking the screen
+  // Every 15 minutes, quietly repeat the last request so the weather stays up to date
+  // (the screen keeps showing the current weather while it loads)
+  const refreshWeather = useCallback(() => {
+    const last = lastRequest.current;
+    if (last) fetchWeather(last.apiQuery, last.label, undefined, last.place, true);
+  }, [fetchWeather]);
 
   // The search box's × button: cancel anything loading and go back to the start
   function clearSearch() {
@@ -320,6 +334,8 @@ function WeatherApp() {
         {view.status === "success" && (
           <WeatherResults
             data={view.data}
+            fetchedAt={view.fetchedAt}
+            onRefresh={refreshWeather}
             action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
           />
         )}
