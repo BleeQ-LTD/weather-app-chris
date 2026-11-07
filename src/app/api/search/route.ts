@@ -9,7 +9,7 @@ const GEOAPIFY_AUTOCOMPLETE = "https://api.geoapify.com/v1/geocode/autocomplete"
 const REQUEST_TIMEOUT_MS = 5000;
 const MIN_QUERY_LENGTH = 2;
 const MAX_QUERY_LENGTH = 100;
-const UPSTREAM_LIMIT = 10; // ask for more than we show, because some get filtered out
+const UPSTREAM_LIMIT = 30; // ask for more than we show, because some get filtered out
 const MAX_RESULTS = 6;
 
 // Geoapify result types we treat as "places you can get weather for".
@@ -112,19 +112,10 @@ export async function GET(request: NextRequest) {
   url.searchParams.set("format", "json");
   url.searchParams.set("lang", "en");
   url.searchParams.set("limit", String(UPSTREAM_LIMIT));
-  // Rank results near the user first when the browser shared their (rough) location.
-  // Otherwise prefer Nigeria: without any bias, Geoapify ranks by the caller's
-  // country, and on Vercel the caller is the server, not the user.
-  const nearLat = Number(request.nextUrl.searchParams.get("lat"));
-  const nearLon = Number(request.nextUrl.searchParams.get("lon"));
-  const hasNear =
-    request.nextUrl.searchParams.has("lat") &&
-    request.nextUrl.searchParams.has("lon") &&
-    Number.isFinite(nearLat) &&
-    Number.isFinite(nearLon) &&
-    Math.abs(nearLat) <= 90 &&
-    Math.abs(nearLon) <= 180;
-  url.searchParams.set("bias", hasNear ? `proximity:${nearLon},${nearLat}` : "countrycode:ng");
+  // Without this, Geoapify ranks results by the caller's country (its default
+  // "countrycode:auto"). On Vercel the caller is the server, not the user,
+  // so Nigerian places dropped out. Prefer Nigeria; other countries still appear.
+  url.searchParams.set("bias", "countrycode:ng");
   url.searchParams.set("apiKey", apiKey);
 
   // The timeout also covers reading the body below

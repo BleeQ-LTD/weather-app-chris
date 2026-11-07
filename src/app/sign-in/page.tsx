@@ -11,7 +11,10 @@ import { useAuth } from "@/components/AuthProvider";
 import PasswordInput from "@/components/PasswordInput";
 
 const inputClass =
-  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
+  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain aria-invalid:border-alert";
+
+type Field = "email" | "password";
+type FieldErrors = Partial<Record<Field, string>>;
 
 export default function SignInPage() {
   const router = useRouter();
@@ -19,7 +22,9 @@ export default function SignInPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Wrong email/password stays a form-level message, so it never reveals which one was wrong
+  const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Someone who is already signed in doesn't need this page
@@ -27,35 +32,42 @@ export default function SignInPage() {
     if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
   }, [authState.status, isSubmitting, router]);
 
+  function clearError(field: Field) {
+    setFieldErrors((errors) => ({ ...errors, [field]: undefined }));
+  }
+
   // After any sign-in we go to the home page. The home page loads the profile and decides:
   // existing profile -> the app; no profile (new Google user) -> "complete your profile";
   // connection problem -> an error with a retry.
   async function handleEmailSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!email.trim() || !password) {
-      setError("Please enter your email and password.");
-      return;
-    }
+    const errors: FieldErrors = {};
+    if (!email.trim()) errors.email = "Please enter your email.";
+    if (!password) errors.password = "Please enter your password.";
+    setFieldErrors(errors);
+    setFormError("");
+    if (Object.values(errors).some(Boolean)) return;
 
-    setError("");
     setIsSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
       router.replace("/");
     } catch (err) {
-      setError(authErrorMessage(err));
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === "auth/invalid-email") setFieldErrors({ email: authErrorMessage(err) });
+      else setFormError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
 
   async function handleGoogleSignIn() {
-    setError("");
+    setFormError("");
     setIsSubmitting(true);
     try {
       await signInWithGoogle();
       router.replace("/");
     } catch (err) {
-      setError(authErrorMessage(err));
+      setFormError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
@@ -96,9 +108,15 @@ export default function SignInPage() {
             type="email"
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearError("email");
+            }}
+            aria-invalid={Boolean(fieldErrors.email) || undefined}
+            aria-describedby={fieldErrors.email ? "email-error" : undefined}
             className={inputClass}
           />
+          {fieldErrors.email && <span id="email-error" className="mt-1 block text-sm text-alert">{fieldErrors.email}</span>}
         </label>
 
         <label className="block">
@@ -108,12 +126,24 @@ export default function SignInPage() {
               Forgot password?
             </Link>
           </span>
-          <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
+          <PasswordInput
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              clearError("password");
+            }}
+            autoComplete="current-password"
+            invalid={Boolean(fieldErrors.password)}
+            describedBy={fieldErrors.password ? "password-error" : undefined}
+          />
+          {fieldErrors.password && (
+            <span id="password-error" className="mt-1 block text-sm text-alert">{fieldErrors.password}</span>
+          )}
         </label>
 
-        {error && (
+        {formError && (
           <p role="alert" className="border-l-4 border-alert bg-surface px-3 py-2 text-sm">
-            {error}
+            {formError}
           </p>
         )}
 

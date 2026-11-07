@@ -11,12 +11,24 @@ import { createProfile, GENDER_OPTIONS } from "@/lib/profile";
 import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
 import PasswordInput from "@/components/PasswordInput";
+import Select from "@/components/Select";
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 50;
 
 const inputClass =
-  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
+  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain aria-invalid:border-alert";
+
+type Field = "name" | "email" | "gender" | "password";
+type FieldErrors = Partial<Record<Field, string>>;
+
+// Which field a Firebase error belongs to, so the message shows under that field
+function fieldForAuthError(error: unknown): Field | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "auth/email-already-in-use" || code === "auth/invalid-email") return "email";
+  if (code === "auth/weak-password") return "password";
+  return null;
+}
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -27,7 +39,8 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [gender, setGender] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState(""); // problems that aren't about one field
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Someone who is already signed in doesn't need this page.
@@ -36,40 +49,45 @@ export default function SignUpPage() {
     if (authState.status === "signed-in" && !isSubmitting) router.replace("/");
   }, [authState.status, isSubmitting, router]);
 
-  // Check the form before contacting Firebase. Returns an error message, or "" if all is fine.
-  function validate(): string {
-    if (!name.trim()) return "Please enter your name.";
-    if (name.trim().length > MAX_NAME_LENGTH) return `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
-    if (!email.trim()) return "Please enter your email.";
-    if (!gender) return "Please choose an option for gender.";
-    if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-    return "";
+  // Typing in a field clears that field's error
+  function clearError(field: Field) {
+    setFieldErrors((errors) => ({ ...errors, [field]: undefined }));
+  }
+
+  // Check every field before contacting Firebase
+  function validate(): FieldErrors {
+    const errors: FieldErrors = {};
+    if (!name.trim()) errors.name = "Please enter your name.";
+    else if (name.trim().length > MAX_NAME_LENGTH) errors.name = `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
+    if (!email.trim()) errors.email = "Please enter your email.";
+    if (!gender) errors.gender = "Please choose an option.";
+    if (password.length < MIN_PASSWORD_LENGTH) errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    return errors;
   }
 
   // Email sign-up: Firebase Auth stores the email and password (and we set the display name);
   // Firestore stores the full profile at users/{uid}, which is what the app reads.
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const problem = validate();
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    const errors = validate();
+    setFieldErrors(errors);
+    setFormError("");
+    if (Object.values(errors).some(Boolean)) return;
 
-    setError("");
     setIsSubmitting(true);
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
       // Keep the Auth display name consistent with the profile
       await updateProfile(user, { displayName: name.trim() });
-      // Save the profile (the app's source of truth) to Firestore at users/{uid}
       const newProfile = { name: name.trim(), email: user.email ?? email.trim(), gender };
       await createProfile(user.uid, newProfile);
       // We just saved it, so the app uses it straight away instead of downloading it again
       profileSaved(user.uid, newProfile);
       router.replace("/");
     } catch (err) {
-      setError(authErrorMessage(err));
+      const field = fieldForAuthError(err);
+      if (field) setFieldErrors({ [field]: authErrorMessage(err) });
+      else setFormError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
@@ -78,13 +96,13 @@ export default function SignUpPage() {
   // it doesn't exist. Google doesn't give us gender, so the home page sends new
   // Google users to "complete your profile".
   async function handleGoogleSignUp() {
-    setError("");
+    setFormError("");
     setIsSubmitting(true);
     try {
       await signInWithGoogle();
       router.replace("/");
     } catch (err) {
-      setError(authErrorMessage(err));
+      setFormError(authErrorMessage(err));
       setIsSubmitting(false);
     }
   }
@@ -125,10 +143,16 @@ export default function SignUpPage() {
             type="text"
             autoComplete="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              clearError("name");
+            }}
             maxLength={MAX_NAME_LENGTH}
+            aria-invalid={Boolean(fieldErrors.name) || undefined}
+            aria-describedby={fieldErrors.name ? "name-error" : undefined}
             className={inputClass}
           />
+          {fieldErrors.name && <span id="name-error" className="mt-1 block text-sm text-alert">{fieldErrors.name}</span>}
         </label>
 
         <label className="block">
@@ -137,32 +161,52 @@ export default function SignUpPage() {
             type="email"
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearError("email");
+            }}
+            aria-invalid={Boolean(fieldErrors.email) || undefined}
+            aria-describedby={fieldErrors.email ? "email-error" : undefined}
             className={inputClass}
           />
+          {fieldErrors.email && <span id="email-error" className="mt-1 block text-sm text-alert">{fieldErrors.email}</span>}
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium">Gender</span>
-          <select value={gender} onChange={(e) => setGender(e.target.value)} className={inputClass}>
-            <option value="">Choose…</option>
-            {GENDER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <Select
+            label="Gender"
+            value={gender}
+            onChange={(value) => {
+              setGender(value);
+              clearError("gender");
+            }}
+            options={GENDER_OPTIONS}
+            invalid={Boolean(fieldErrors.gender)}
+            describedBy={fieldErrors.gender ? "gender-error" : undefined}
+          />
+          {fieldErrors.gender && <span id="gender-error" className="mt-1 block text-sm text-alert">{fieldErrors.gender}</span>}
+        </div>
 
         <label className="block">
           <span className="text-sm font-medium">Password</span>
-          <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" />
-          <span className="mt-1 block text-xs text-muted">At least {MIN_PASSWORD_LENGTH} characters.</span>
+          <PasswordInput
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              clearError("password");
+            }}
+            autoComplete="new-password"
+            invalid={Boolean(fieldErrors.password)}
+            describedBy="password-help"
+          />
+          <span id="password-help" className={`mt-1 block text-sm ${fieldErrors.password ? "text-alert" : "text-muted"}`}>
+            {fieldErrors.password ?? `At least ${MIN_PASSWORD_LENGTH} characters.`}
+          </span>
         </label>
 
-        {error && (
+        {formError && (
           <p role="alert" className="border-l-4 border-alert bg-surface px-3 py-2 text-sm">
-            {error}
+            {formError}
           </p>
         )}
 

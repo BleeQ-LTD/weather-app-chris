@@ -89,7 +89,7 @@ export default function SearchForm({
 
   // Only rough coordinates are sent (2 decimal places, about 1 km), which is
   // enough to rank nearby places first
-  const nearParams = near ? `&lat=${near.lat.toFixed(2)}&lon=${near.lon.toFixed(2)}` : "";
+  const nearParams = "";
 
   // Rotate the example place in the empty box. Stops while the user has typed something.
   useEffect(() => {

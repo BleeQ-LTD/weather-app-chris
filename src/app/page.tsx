@@ -15,6 +15,8 @@ import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import type { Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
+import Greeting from "@/components/Greeting";
+
 
 // Every screen the app can be on. Only one is possible at a time.
 type ViewState =
@@ -330,17 +332,19 @@ function WeatherApp() {
             </button>
           </div>
         )}
-
         {view.status === "success" && (
-          <WeatherResults
-            data={view.data}
-            fetchedAt={view.fetchedAt}
-            onRefresh={refreshWeather}
-            action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
-          />
-        )}
-      </section>
-    </main>
+          <>
+            <Greeting data={view.data} />
+            <WeatherResults
+              data={view.data}
+              fetchedAt={view.fetchedAt}
+              onRefresh={refreshWeather}
+              action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
+            />
+          </>
+        )}           
+         </section>
+       </main>
   );
 }
 

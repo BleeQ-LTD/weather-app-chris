@@ -2,6 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { WeatherData, formatDay, formatTemp, splitLocalDateTime } from "@/lib/weather";
+import { setTemperatureUnit, useTemperatureUnit, type TempUnit } from "@/lib/units";
+
+const UNITS: TempUnit[] = ["C", "F"];
 
 const TICK_MS = 30_000; // move the local clock on every 30 seconds
 // WeatherAPI publishes new current conditions about every 15 minutes, so refreshing
@@ -42,6 +45,8 @@ export default function WeatherResults({
   onRefresh?: () => void; // called quietly every 15 minutes to keep the numbers fresh
 }) {
   const { location, current, forecast, units } = data;
+  const unit = useTemperatureUnit(); // °C or °F, remembered in this browser
+  const temp = (celsius: number) => formatTemp(celsius, unit);
 
   // "now" starts at the moment the data arrived and ticks forward
   const [now, setNow] = useState(fetchedAt);
@@ -83,10 +88,27 @@ export default function WeatherResults({
         {action}
       </div>
       {place && <p className="text-muted">{place}</p>}
-      <p className="mt-1 text-sm text-muted">
-        Local time {local.time},{" "}
-        <time dateTime={local.date}>{formatDay(local.date)}</time>
-      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">
+          Local time {local.time},{" "}
+          <time dateTime={local.date}>{formatDay(local.date)}</time>
+        </p>
+
+        {/* °C / °F switch; the choice is remembered for next time */}
+        <div role="group" aria-label="Temperature unit" className="inline-flex overflow-hidden rounded-md border border-line text-sm">
+          {UNITS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={unit === option}
+              onClick={() => setTemperatureUnit(option)}
+              className={`px-3 py-1 ${unit === option ? "bg-rain text-white" : "bg-surface text-muted hover:text-ink"}`}
+            >
+              °{option}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Current conditions */}
       <div className="mt-6 flex items-center gap-3">
@@ -94,7 +116,7 @@ export default function WeatherResults({
         <img src={current.icon} alt="" width={72} height={72} />
         <div>
           <p className="text-6xl font-semibold leading-none tracking-tight sm:text-7xl">
-            {formatTemp(current.temperature)}
+            {temp(current.temperature)}
           </p>
           <p className="mt-1 text-lg">{current.condition}</p>
         </div>
@@ -103,7 +125,7 @@ export default function WeatherResults({
       <dl className="mt-6 grid grid-cols-3 gap-4 border-y border-line py-4">
         <div>
           <dt className="text-sm text-muted">Feels like</dt>
-          <dd className="text-lg font-medium">{formatTemp(current.feelsLike)}</dd>
+          <dd className="text-lg font-medium">{temp(current.feelsLike)}</dd>
         </div>
         <div>
           <dt className="text-sm text-muted">Humidity</dt>
@@ -151,7 +173,7 @@ export default function WeatherResults({
               <div className="col-span-3 flex items-center gap-2 sm:col-span-1">
                 <span className="w-10 text-right text-sm text-muted">
                   <span className="sr-only">Low </span>
-                  {formatTemp(day.low)}
+                  {temp(day.low)}
                 </span>
                 <div aria-hidden="true" className="relative h-1.5 flex-1 rounded-full bg-line">
                   <div
@@ -161,7 +183,7 @@ export default function WeatherResults({
                 </div>
                 <span className="w-10 text-sm font-medium">
                   <span className="sr-only">High </span>
-                  {formatTemp(day.high)}
+                  {temp(day.high)}
                 </span>
               </div>
             </li>

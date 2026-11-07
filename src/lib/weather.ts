@@ -71,8 +71,10 @@ export function splitLocalDateTime(value: string) {
   return { date, time: time.padStart(5, "0") };
 }
 
-export function formatTemp(celsius: number): string {
-  return `${Math.round(celsius)}°C`;
+// "28°C", or "82°F" when the user prefers Fahrenheit
+export function formatTemp(celsius: number, unit: "C" | "F" = "C"): string {
+  const value = unit === "F" ? (celsius * 9) / 5 + 32 : celsius;
+  return `${Math.round(value)}°${unit}`;
 }
 
 // ---- Search suggestions (from /api/search) ----
