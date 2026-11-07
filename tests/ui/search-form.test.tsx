@@ -23,6 +23,7 @@ function Harness({
       onChange={setValue}
       onSearch={onSearch}
       onSelectSuggestion={onSelectSuggestion}
+      onClear={() => {}}
       isLoading={false}
       inputRef={inputRef}
     />

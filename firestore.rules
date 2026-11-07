@@ -28,11 +28,20 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
-    // A favourite must have exactly these fields, with real coordinates.
+    // An optional text field: either missing, or a string of at most 100 characters
+    function isOptionalText(data, field) {
+      return !(field in data) || (data[field] is string && data[field].size() <= 100);
+    }
+
+    // A favourite must have a name, real coordinates and the creation time.
+    // region and country are optional (older favourites don't have them), so that
+    // "Lagos, Nigeria" and "Lagos, Portugal" can be told apart. Nothing else is allowed.
     function isValidFavourite(data) {
       return data.keys().hasAll(['name', 'lat', 'lon', 'createdAt'])
-        && data.keys().hasOnly(['name', 'lat', 'lon', 'createdAt'])
+        && data.keys().hasOnly(['name', 'region', 'country', 'lat', 'lon', 'createdAt'])
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && isOptionalText(data, 'region')
+        && isOptionalText(data, 'country')
         && data.lat is number && data.lat >= -90 && data.lat <= 90
         && data.lon is number && data.lon >= -180 && data.lon <= 180
         && data.createdAt is timestamp;

@@ -91,6 +91,17 @@ describe("a user's own data", () => {
     await seedAliceData();
     await assertSucceeds(deleteDoc(doc(alice(), "users/alice/favourites/lagos")));
   });
+
+  it("lets Alice save a favourite with its region and country", async () => {
+    await seedAliceData();
+    await assertSucceeds(
+      setDoc(doc(alice(), "users/alice/favourites/lagos_portugal"), {
+        ...validFavourite(),
+        region: "Algarve",
+        country: "Portugal",
+      })
+    );
+  });
 });
 
 describe("another user's data (Bob attacking Alice)", () => {
@@ -176,6 +187,26 @@ describe("invalid data is rejected", () => {
   it("rejects a favourite with an impossible latitude", async () => {
     await seedAliceData();
     await assertFails(setDoc(doc(alice(), "users/alice/favourites/abuja"), { ...validFavourite(), lat: 200 }));
+  });
+    it("rejects a favourite with a country longer than 100 characters", async () => {
+    await seedAliceData();
+    await assertFails(
+      setDoc(doc(alice(), "users/alice/favourites/abuja"), { ...validFavourite(), country: "a".repeat(101) })
+    );
+  });
+
+  it("rejects a favourite with a country that isn't text", async () => {
+    await seedAliceData();
+    await assertFails(
+      setDoc(doc(alice(), "users/alice/favourites/abuja"), { ...validFavourite(), country: 123 })
+    );
+  });
+
+  it("rejects a favourite with an extra field", async () => {
+    await seedAliceData();
+    await assertFails(
+      setDoc(doc(alice(), "users/alice/favourites/abuja"), { ...validFavourite(), isPublic: true })
+    );
   });
 });
 

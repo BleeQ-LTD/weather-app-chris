@@ -14,11 +14,20 @@ import { db } from "@/lib/firebase";
 export type Favourite = {
   id: string;
   name: string;
+  region: string; // "" for favourites saved before region was stored
+  country: string; // "" for favourites saved before country was stored
   lat: number;
   lon: number;
 };
 
-const MAX_NAME_LENGTH = 100; // must match firestore.rules
+const MAX_NAME_LENGTH = 100; // must match firestore.rules (name, region and country)
+
+// How a favourite is shown: "Lagos, Nigeria" or "Lagos, Algarve, Portugal",
+// so two places with the same name can be told apart.
+// Older favourites without a country just show their name.
+export function favouriteLabel({ name, region, country }: Pick<Favourite, "name" | "region" | "country">) {
+  return [name, region && region !== name ? region : "", country].filter(Boolean).join(", ");
+}
 
 // Turns text into a safe, lowercase ID part: "São Paulo" -> "sao-paulo"
 function slug(text: string): string {
@@ -42,11 +51,13 @@ export function favouriteId(name: string, country: string): string {
 // overwrites the same document, so it never creates a duplicate.
 export async function saveFavourite(
   uid: string,
-  place: { name: string; country: string; lat: number; lon: number }
+  place: { name: string; region: string; country: string; lat: number; lon: number }
 ) {
   const id = favouriteId(place.name, place.country);
   await setDoc(doc(db, "users", uid, "favourites", id), {
     name: place.name.slice(0, MAX_NAME_LENGTH),
+    region: place.region.slice(0, MAX_NAME_LENGTH),
+    country: place.country.slice(0, MAX_NAME_LENGTH),
     lat: place.lat,
     lon: place.lon,
     createdAt: serverTimestamp(),
@@ -73,7 +84,14 @@ export function subscribeToFavourites(
     (snapshot) => {
       const items = snapshot.docs.map((document) => {
         const data = document.data();
-        return { id: document.id, name: String(data.name), lat: Number(data.lat), lon: Number(data.lon) };
+        return {
+          id: document.id,
+          name: String(data.name),
+          region: typeof data.region === "string" ? data.region : "",
+          country: typeof data.country === "string" ? data.country : "",
+          lat: Number(data.lat),
+          lon: Number(data.lon),
+        };
       });
       onChange(items, snapshot.metadata.fromCache);
     },

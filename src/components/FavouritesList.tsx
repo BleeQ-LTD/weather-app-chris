@@ -1,10 +1,12 @@
 "use client";
 
-import { removeFavourite, type Favourite } from "@/lib/favourites";
-import type { FavouritesState } from "@/lib/useFavourites";
+import { useState } from "react";
 import Link from "next/link";
+import { favouriteLabel, removeFavourite, type Favourite } from "@/lib/favourites";
+import type { FavouritesState } from "@/lib/useFavourites";
 
-// "Your favourites" row under the search box, for signed-in users
+// The list on the Favourites page: loading, slow, error (with Try again),
+// empty, or the saved places. Only one of these shows at a time.
 export default function FavouritesList({
   favourites,
   onPick,
@@ -13,21 +15,21 @@ export default function FavouritesList({
   onPick: (favourite: Favourite) => void;
 }) {
   const { uid, items, isLoading, isSlow, failed, retry } = favourites;
-  // Visitors who aren't signed in: explain what an account gives THEM
-  // nav's "Create account" and by "Sign in to save" on the weather results.
+  const [removeError, setRemoveError] = useState("");
+
   if (uid === null) return null;
 
   if (isLoading) {
     return (
       <div className="mt-6" role="status">
         <p className="sr-only">Loading your favourites…</p>
-        <div className="flex gap-2" aria-hidden="true">
+        <div className="space-y-3" aria-hidden="true">
           {[0, 1, 2].map((key) => (
-            <div key={key} className="h-8 w-20 rounded-full bg-line motion-safe:animate-pulse" />
+            <div key={key} className="h-14 rounded-md bg-line motion-safe:animate-pulse" />
           ))}
         </div>
         {isSlow && (
-          <p className="mt-2 text-sm text-muted">
+          <p className="mt-3 text-sm text-muted">
             This is taking longer than usual. Check your internet connection.
           </p>
         )}
@@ -51,32 +53,61 @@ export default function FavouritesList({
   }
 
   if (items.length === 0) {
-    return <p className="mt-6 text-sm text-muted">Tip: tap ☆ Save on any place to add it to your favourites.</p>;
+    return (
+      <div className="mt-6">
+        <p className="text-muted">No favourites yet.</p>
+        <p className="mt-1 text-sm text-muted">Search for a place and tap ☆ Save to keep it here.</p>
+        <Link
+          href="/"
+          className="mt-4 inline-block rounded-md border border-line bg-surface px-4 py-2 hover:border-rain"
+        >
+          Find a place
+        </Link>
+      </div>
+    );
+  }
+
+  function remove(favourite: Favourite) {
+    setRemoveError("");
+    removeFavourite(uid as string, favourite.id).catch((err) => {
+      console.error("[favourites] Could not remove favourite:", err);
+      setRemoveError(`Couldn't remove ${favouriteLabel(favourite)}. Check your connection and try again.`);
+    });
   }
 
   return (
     <section className="mt-6" aria-label="Your favourites">
-      <p className="text-sm text-muted">Your favourites</p>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {items.map((favourite) => (
-          <li key={favourite.id} className="flex items-center rounded-full border border-line bg-surface text-sm">
-            <button type="button" onClick={() => onPick(favourite)} className="py-1.5 pl-4 pr-2 hover:text-rain">
-              {favourite.name}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                removeFavourite(uid, favourite.id).catch((err) =>
-                  console.error("[favourites] Could not remove favourite:", err)
-                )
-              }
-              aria-label={`Remove ${favourite.name} from favourites`}
-              className="py-1.5 pl-1 pr-3 text-muted hover:text-ink"
-            >
-              ×
-            </button>
-          </li>
-        ))}
+      {removeError && (
+        <p role="alert" className="mb-3 border-l-4 border-alert bg-surface px-3 py-2 text-sm">
+          {removeError}
+        </p>
+      )}
+      <ul className="divide-y divide-line border-y border-line">
+        {items.map((favourite) => {
+          // "Lagos" big, "Nigeria" (or "Algarve, Portugal") underneath
+          const label = favouriteLabel(favourite);
+          const rest = label.length > favourite.name.length ? label.slice(favourite.name.length + 2) : "";
+          return (
+            <li key={favourite.id} className="flex items-center justify-between gap-3 py-3">
+              <button
+                type="button"
+                onClick={() => onPick(favourite)}
+                className="min-w-0 flex-1 text-left hover:text-rain"
+              >
+                <span className="block font-medium">{favourite.name}</span>
+                {rest && <span className="block text-sm text-muted">{rest}</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(favourite)}
+                aria-label={`Remove ${label} from favourites`}
+                className="shrink-0 rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-muted hover:border-rain hover:text-ink"
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
