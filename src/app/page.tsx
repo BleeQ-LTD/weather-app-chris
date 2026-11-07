@@ -11,7 +11,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
 import LocationPrompt from "@/components/LocationPrompt";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
-import type { Favourite } from "@/lib/favourites";
+import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
 
@@ -35,14 +35,14 @@ const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
 function WeatherApp() {
   const [query, setQuery] = useState("");
   const favourites = useFavourites();
-    // Where the user is, once they share their location (for nearby search examples)
+  // Where the user is, once they share their location (for nearby search examples)
   const [near, setNear] = useState<NearbyHint | undefined>(undefined);
   const [view, setView] = useState<ViewState>({ status: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
-    // The last weather request, so Refresh can repeat it
+  // The last weather request, so the automatic refresh can repeat it
   const lastRequest = useRef<{ apiQuery: string; label: string; place?: Suggestion } | null>(null);
-  
+
   // Cancel any request still in flight so an older, slower response
   // can't overwrite a newer one
   function startRequest() {
@@ -70,7 +70,7 @@ function WeatherApp() {
       label: string,
       controller = startRequest(),
       place?: Suggestion,
-      keepCurrent = false // true for Refresh: keep showing the weather while new data loads
+      keepCurrent = false // true for the automatic refresh: keep showing the weather while new data loads
     ) => {
       lastRequest.current = { apiQuery, label, place };
       if (!keepCurrent) setView({ status: "loading", query: label });
@@ -200,8 +200,6 @@ function WeatherApp() {
     fetchWeather(weatherQueryFor(place), label, undefined, place);
   }
 
-    // "↻ Refresh" (and the automatic 15-minute refresh): repeat the last request
-  // without blanking the screen
   // Every 15 minutes, quietly repeat the last request so the weather stays up to date
   // (the screen keeps showing the current weather while it loads)
   const refreshWeather = useCallback(() => {
@@ -233,7 +231,7 @@ function WeatherApp() {
       } catch {
         // No proper name available: fall back to WeatherAPI's name below
       }
-      setNear({ lat, lon, place }); // lets search show and rank places near the user
+      setNear({ lat, lon, place }); // lets the search box show examples near the user
 
       // In the background, load towns and areas nearby to use as search examples
       fetch(`/api/nearby?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`)
@@ -254,13 +252,29 @@ function WeatherApp() {
     [fetchWeather]
   );
 
-  function pickFavourite(favourite: Favourite) {
-    setQuery(favourite.name);
-    fetchWeather(`${favourite.lat},${favourite.lon}`, favourite.name);
-  }
+  // Open a saved place with the name, region and country it was saved with,
+  // so the heading and search box match the favourite ("Lagos, Nigeria")
+  const pickFavourite = useCallback(
+    (favourite: Favourite) => {
+      const label = favouriteLabel(favourite);
+      setQuery(label);
+      fetchWeather(`${favourite.lat},${favourite.lon}`, label, undefined, {
+        id: favourite.id,
+        name: favourite.name,
+        region: favourite.region,
+        country: favourite.country,
+        lat: favourite.lat,
+        lon: favourite.lon,
+        kind: "city",
+      });
+    },
+    [fetchWeather]
+  );
 
-    // Opening a favourite from the Favourites page (/?favourite=lagos_nigeria):
-  // once the favourites have loaded, show that place's weather, then tidy the address bar
+  // Opening a favourite from the Favourites page (/?favourite=lagos_nigeria):
+  // once the favourites have loaded, show that place's weather, then tidy the address bar.
+  // The weather is loaded in a timer callback rather than directly in the effect,
+  // so React doesn't re-render in the middle of the effect.
   const openedFavourite = useRef(false);
   useEffect(() => {
     if (openedFavourite.current || favourites.isLoading) return;
@@ -270,7 +284,8 @@ function WeatherApp() {
     if (!favourite) return;
     openedFavourite.current = true;
     window.history.replaceState(null, "", "/");
-    pickFavourite(favourite);
+    const timer = setTimeout(() => pickFavourite(favourite), 0);
+    return () => clearTimeout(timer);
   }, [favourites.isLoading, favourites.items, pickFavourite]);
 
   // Short text for screen readers, announced whenever the state changes
