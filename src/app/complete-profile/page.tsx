@@ -6,11 +6,15 @@ import { updateProfile, type User } from "firebase/auth";
 import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
+import Select from "@/components/Select";
 import { createProfile, GENDER_OPTIONS, type Profile } from "@/lib/profile";
 
 const MAX_NAME_LENGTH = 50;
 const inputClass =
-  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain";
+  "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain aria-invalid:border-alert";
+
+type Field = "name" | "gender";
+type FieldErrors = Partial<Record<Field, string>>;
 
 // Google sign-in is also sign-up: it creates an account if none exists, but Google
 // doesn't tell us the user's gender. So a new Google user finishes their profile here.
@@ -58,16 +62,20 @@ function CompleteProfileForm({ user, onSaved }: { user: User; onSaved: (profile:
   // Start with the name Google gave us, which the user can change
   const [name, setName] = useState(user.displayName ?? "");
   const [gender, setGender] = useState("");
-  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [error, setError] = useState(""); // saving problems, not about one field
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!name.trim()) return setError("Please enter your name.");
-    if (name.trim().length > MAX_NAME_LENGTH) return setError(`Name must be ${MAX_NAME_LENGTH} characters or fewer.`);
-    if (!gender) return setError("Please choose an option for gender.");
-
+    const errors: FieldErrors = {};
+    if (!name.trim()) errors.name = "Please enter your name.";
+    else if (name.trim().length > MAX_NAME_LENGTH) errors.name = `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
+    if (!gender) errors.gender = "Please choose an option.";
+    setFieldErrors(errors);
     setError("");
+    if (Object.values(errors).some(Boolean)) return;
+
     setIsSaving(true);
     const profile: Profile = { name: name.trim(), email: user.email ?? "", gender };
     try {
@@ -101,23 +109,32 @@ function CompleteProfileForm({ user, onSaved }: { user: User; onSaved: (profile:
             type="text"
             autoComplete="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setFieldErrors((errors) => ({ ...errors, name: undefined }));
+            }}
             maxLength={MAX_NAME_LENGTH}
+            aria-invalid={Boolean(fieldErrors.name) || undefined}
+            aria-describedby={fieldErrors.name ? "name-error" : undefined}
             className={inputClass}
           />
+          {fieldErrors.name && <span id="name-error" className="mt-1 block text-sm text-alert">{fieldErrors.name}</span>}
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium">Gender</span>
-          <select value={gender} onChange={(e) => setGender(e.target.value)} className={inputClass}>
-            <option value="">Choose…</option>
-            {GENDER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <Select
+            label="Gender"
+            value={gender}
+            onChange={(value) => {
+              setGender(value);
+              setFieldErrors((errors) => ({ ...errors, gender: undefined }));
+            }}
+            options={GENDER_OPTIONS}
+            invalid={Boolean(fieldErrors.gender)}
+            describedBy={fieldErrors.gender ? "gender-error" : undefined}
+          />
+          {fieldErrors.gender && <span id="gender-error" className="mt-1 block text-sm text-alert">{fieldErrors.gender}</span>}
+        </div>
 
         {error && (
           <p role="alert" className="border-l-4 border-alert bg-surface px-3 py-2 text-sm">
