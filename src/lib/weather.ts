@@ -1,5 +1,8 @@
 // Shapes returned by our own /api/weather route (not WeatherAPI's raw format)
 
+// Fields marked optional were added for the redesign (#71). The UI hides
+// whatever is missing, so older or partial responses still display.
+
 export interface ForecastDay {
   date: string; // "2026-09-30"
   high: number;
@@ -7,6 +10,19 @@ export interface ForecastDay {
   chanceOfRain: number;
   condition: string;
   icon: string;
+  code?: number; // WeatherAPI condition code, e.g. 1000 = clear
+  sunrise?: string; // "06:41 AM", the place's local time
+  sunset?: string;
+}
+
+// One hour of the next-24-hours forecast
+export interface HourForecast {
+  time: string; // "2026-09-29 14:00", the place's local time
+  temperature: number;
+  chanceOfRain: number;
+  condition: string;
+  code?: number;
+  isDay?: boolean;
 }
 
 export interface WeatherData {
@@ -27,8 +43,15 @@ export interface WeatherData {
     windSpeed: number;
     condition: string;
     icon: string;
+    code?: number;
+    isDay?: boolean;
+    uv?: number;
+    visibility?: number; // km
+    pressure?: number; // hPa (same as millibars)
+    windDirection?: string; // compass point the wind comes from, e.g. "SW"
   };
   forecast: ForecastDay[];
+  hourly?: HourForecast[]; // the next 24 hours, starting with the current hour
   units: {
     temperature: string;
     windSpeed: string;
@@ -71,10 +94,36 @@ export function splitLocalDateTime(value: string) {
   return { date, time: time.padStart(5, "0") };
 }
 
+// 28 -> 28 (°C) or 82 (°F), rounded to a whole degree
+export function convertTemp(celsius: number, unit: "C" | "F" = "C"): number {
+  return Math.round(unit === "F" ? (celsius * 9) / 5 + 32 : celsius);
+}
+
 // "28°C", or "82°F" when the user prefers Fahrenheit
 export function formatTemp(celsius: number, unit: "C" | "F" = "C"): string {
-  const value = unit === "F" ? (celsius * 9) / 5 + 32 : celsius;
-  return `${Math.round(value)}°${unit}`;
+  return `${convertTemp(celsius, unit)}°${unit}`;
+}
+
+// "2026-09-29 15:00" -> "3 pm"; "2026-09-29 00:00" -> "12 am"
+export function formatHour(localDateTime: string): string {
+  const hour = Number(splitLocalDateTime(localDateTime).time.slice(0, 2));
+  if (!Number.isFinite(hour)) return localDateTime;
+  return `${hour % 12 || 12} ${hour < 12 ? "am" : "pm"}`;
+}
+
+// "13:42" -> "1:42 pm"
+export function formatClock(time24: string): string {
+  const [h, m = "00"] = time24.split(":");
+  const hour = Number(h);
+  if (!Number.isFinite(hour)) return time24;
+  return `${hour % 12 || 12}:${m.padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+}
+
+// WeatherAPI's "06:41 AM" -> "6:41 am"
+export function formatAstroTime(value: string): string {
+  const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(value.trim());
+  if (!match) return value;
+  return `${Number(match[1])}:${match[2]} ${match[3].toLowerCase()}`;
 }
 
 // ---- Search suggestions (from /api/search) ----

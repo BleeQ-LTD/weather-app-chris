@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { Suggestion, formatPlace, kindLabel, matchesPlace } from "@/lib/weather";
+import { AlertIcon, CloseIcon, PinIcon, SearchIcon } from "@/components/icons";
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
@@ -260,12 +261,18 @@ export default function SearchForm({
     .join(" ");
 
   return (
-    <form role="search" onSubmit={handleSubmit} noValidate>
-      <label id={labelId} htmlFor={inputId} className="block font-medium">
+    <form role="search" onSubmit={handleSubmit} noValidate className="relative">
+      <label id={labelId} htmlFor={inputId} className="sr-only">
         City or town
       </label>
-      <div className="mt-2 flex gap-2">
-        <div className="relative min-w-0 flex-1">
+      {/* One field holds the icon, the input and both buttons, with one focus ring around it all */}
+      <div
+        className={`search-field flex h-[52px] items-center gap-1 rounded-[14px] border bg-surface pr-1.5 pl-3.5 ${
+          validationError ? "border-alert" : "border-control"
+        }`}
+      >
+        <SearchIcon className="shrink-0 text-muted" />
+        <div className="relative flex h-full min-w-0 flex-1 items-center">
           <input
             ref={inputRef}
             id={inputId}
@@ -289,93 +296,89 @@ export default function SearchForm({
               cancelPending();
               closeList();
             }}
-            className="w-full rounded-md border border-line bg-surface py-2.5 pl-3 pr-10 text-base text-ink aria-invalid:border-alert"
+            className="h-full w-full min-w-0 bg-transparent pr-2 pl-1.5 text-base text-ink placeholder:text-muted"
           />
 
           {isFetching && (
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-line border-t-rain motion-safe:animate-spin ${
-                value ? "right-10" : "right-3"
-              }`}
+              className="pointer-events-none mr-1 h-4 w-4 shrink-0 rounded-full border-2 border-line border-t-rain motion-safe:animate-spin"
             />
           )}
-
-          {value && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              // mousedown fires before the input's blur, so the click still registers
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-lg leading-none text-muted hover:bg-line hover:text-ink"
-            >
-              ×
-            </button>
-          )}
-
-          <ul
-            id={listId}
-            role="listbox"
-            aria-labelledby={labelId}
-            hidden={!listVisible}
-            className="absolute inset-x-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-md border border-line bg-surface py-1 shadow-md"
-          >
-            {suggestions.map((suggestion, index) => {
-              const isActive = index === activeIndex;
-              const rest = formatPlace(suggestion).slice(suggestion.name.length + 2);
-              const tag = kindLabel(suggestion.kind);
-              return (
-                <li
-                  key={suggestion.id}
-                  id={optionId(index)}
-                  role="option"
-                  aria-selected={isActive}
-                  // mousedown fires before the input's blur, so the list
-                  // stays open long enough for the click to register
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => selectSuggestion(suggestion)}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  className={`cursor-pointer px-3 py-2 ${isActive ? "bg-rain text-white" : ""}`}
-                >
-                  <span className="font-medium">{suggestion.name}</span>
-                  {rest && (
-                    <span className={isActive ? "text-white/85" : "text-muted"}>
-                      , {rest}
-                    </span>
-                  )}
-                  {tag && (
-                    <span className={`ml-2 text-sm ${isActive ? "text-white/85" : "text-muted"}`}>
-                      · {tag}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
         </div>
+
+        {value && (
+          <button
+            type="button"
+            aria-label="Clear search"
+            // mousedown fires before the input's blur, so the click still registers
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clearSearch}
+            className="flex h-10 w-11 shrink-0 items-center justify-center rounded-[10px] text-muted hover:bg-accent-soft hover:text-ink"
+          >
+            <CloseIcon size={18} strokeWidth={2.2} />
+          </button>
+        )}
 
         <button
           type="submit"
           disabled={isLoading}
-          className="shrink-0 rounded-md bg-rain px-4 py-2.5 font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 shrink-0 rounded-[10px] bg-rain px-4 font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isLoading ? "Searching…" : "Search"}
         </button>
       </div>
 
-      {/* Helper text sits under the box, and uses the same format as the results */}
-      <p id={hintId} className="mt-1.5 text-sm text-muted">
+      <ul
+        id={listId}
+        role="listbox"
+        aria-labelledby={labelId}
+        hidden={!listVisible}
+        className="absolute inset-x-0 top-full z-20 mt-2 max-h-80 overflow-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
+      >
+        {suggestions.map((suggestion, index) => {
+          const isActive = index === activeIndex;
+          const rest = formatPlace(suggestion).slice(suggestion.name.length + 2);
+          const tag = kindLabel(suggestion.kind);
+          return (
+            <li
+              key={suggestion.id}
+              id={optionId(index)}
+              role="option"
+              aria-selected={isActive}
+              // mousedown fires before the input's blur, so the list
+              // stays open long enough for the click to register
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectSuggestion(suggestion)}
+              onMouseEnter={() => setActiveIndex(index)}
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 ${
+                isActive ? "bg-accent-soft" : ""
+              }`}
+            >
+              <PinIcon size={18} className={`shrink-0 ${isActive ? "text-link" : "text-muted"}`} />
+              <span>
+                <span className="font-semibold">{suggestion.name}</span>
+                {rest && <span className="text-muted">, {rest}</span>}
+                {tag && <span className="ml-2 text-sm text-muted">· {tag}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Kept for screen readers; the rotating example in the box shows the same thing visually */}
+      <p id={hintId} className="sr-only">
         Start typing, then pick a place from the list, for example Lagos, Nigeria.
       </p>
 
       {validationError && (
-        <p id={errorId} className="mt-2 text-sm font-medium text-alert">
+        <p id={errorId} className="mt-2 flex items-center gap-1.5 px-1 text-sm font-medium text-alert">
+          <AlertIcon size={16} />
           {validationError}
         </p>
       )}
       {noMatchesFor && (
-        <p className="mt-2 text-sm text-muted">
+        <p className="mt-2 px-1 text-sm text-muted">
           No places match &ldquo;{noMatchesFor}&rdquo;. Check the spelling or try a
           nearby town.
         </p>

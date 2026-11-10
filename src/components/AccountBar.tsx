@@ -22,17 +22,22 @@ export default function AccountBar() {
 
   // While Firebase checks who is signed in, show a placeholder instead of guessing
   if (authState.status === "checking") {
-    return <div className="h-8 w-24 shrink-0 rounded-md bg-line motion-safe:animate-pulse" aria-hidden="true" />;
+    return <div className="h-9 w-28 shrink-0 rounded-xl bg-line motion-safe:animate-pulse" aria-hidden="true" />;
   }
 
   if (authState.status === "guest" || authState.status === "signed-out") {
     return (
-      <nav className="flex shrink-0 items-center gap-3 whitespace-nowrap text-sm">
+      <nav aria-label="Account" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[15px] sm:gap-2 sm:text-base">
         {authState.status === "guest" && (
-          <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">Guest</span>
+          <span className="hidden rounded-full border border-line px-2 py-0.5 text-xs text-muted sm:inline">Guest</span>
         )}
-        <Link href="/sign-in" className="hover:underline">Sign in</Link>
-        <Link href="/sign-up" className="rounded-md bg-rain px-3 py-1.5 font-medium text-white hover:opacity-90">
+        <Link href="/sign-in" className="flex min-h-11 items-center rounded-xl px-2.5 font-medium hover:bg-accent-soft">
+          Sign in
+        </Link>
+        <Link
+          href="/sign-up"
+          className="flex min-h-11 items-center rounded-xl bg-rain px-3.5 font-semibold text-white hover:brightness-110"
+        >
           Create account
         </Link>
       </nav>
@@ -47,12 +52,22 @@ export default function AccountBar() {
   const firstName = fullName.split(" ")[0];
 
   return (
-    <div className="flex shrink-0 items-center gap-4 whitespace-nowrap text-sm">
-      {firstName && <span className="hidden text-muted sm:inline">{firstName}</span>}
+    <div className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[15px] sm:gap-2 sm:text-base">
+      {firstName && (
+        <span className="flex items-center gap-2 border-l border-line pl-2 font-semibold sm:pl-3">
+          <span
+            aria-hidden="true"
+            className="hidden h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-link sm:flex"
+          >
+            {firstName.charAt(0).toUpperCase()}
+          </span>
+          <span className="max-w-[7rem] truncate">{firstName}</span>
+        </span>
+      )}
       <button
         type="button"
         onClick={handleSignOut}
-        className="rounded-md border border-line bg-surface px-3 py-1.5 hover:border-rain"
+        className="min-h-11 rounded-xl px-2 font-medium text-link hover:bg-accent-soft sm:px-3"
       >
         Sign out
       </button>
