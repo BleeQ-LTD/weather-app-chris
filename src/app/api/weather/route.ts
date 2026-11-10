@@ -26,12 +26,53 @@ function errorResponse(code: ErrorCode, message: string, status: number) {
 interface Condition {
   text: string;
   icon: string;
+  code?: number;
 }
 
-// Returns the condition's text and icon, or null if either is missing
+// Returns the condition's text and icon (and code, if sent), or null if text or icon is missing
 function parseCondition(value: unknown): Condition | null {
   if (!isRecord(value) || !isString(value.text) || !isString(value.icon)) return null;
-  return { text: value.text, icon: value.icon };
+  return { text: value.text, icon: value.icon, code: optionalNumber(value.code) };
+}
+
+// Extra fields for the redesign (#71) are optional: if WeatherAPI leaves one
+// out, we drop just that field instead of failing the whole response
+function optionalNumber(value: unknown): number | undefined {
+  return isNumber(value) ? value : undefined;
+}
+function optionalString(value: unknown): string | undefined {
+  return isString(value) && value.trim() ? value : undefined;
+}
+function optionalDayFlag(value: unknown): boolean | undefined {
+  return value === 1 ? true : value === 0 ? false : undefined;
+}
+
+const HOURS_AHEAD = 24;
+
+// The next 24 hours from all forecast days, starting with the place's current hour.
+// localTime is the place's own time, e.g. "2026-09-29 9:05".
+function parseHours(forecastDays: unknown[], localTime: string) {
+  const hours = [];
+  for (const entry of forecastDays) {
+    if (!isRecord(entry) || !Array.isArray(entry.hour)) continue;
+    for (const hour of entry.hour) {
+      if (!isRecord(hour) || !isString(hour.time) || !isNumber(hour.temp_c)) continue;
+      const condition = parseCondition(hour.condition);
+      hours.push({
+        time: hour.time,
+        temperature: hour.temp_c,
+        chanceOfRain: optionalNumber(hour.chance_of_rain) ?? 0,
+        condition: condition?.text ?? "",
+        code: condition?.code,
+        isDay: optionalDayFlag(hour.is_day),
+      });
+    }
+  }
+  // "2026-09-29 9:05" -> "2026-09-29 09:00". Times are "YYYY-MM-DD HH:MM", so they sort as text.
+  const [date, time = ""] = localTime.split(" ");
+  const currentHour = `${date} ${time.padStart(5, "0").slice(0, 2)}:00`;
+  const start = hours.findIndex((hour) => hour.time >= currentHour);
+  return start === -1 ? [] : hours.slice(start, start + HOURS_AHEAD);
 }
 
 // Checks every field we use, then builds our own response shape.
@@ -81,6 +122,7 @@ function parseForecast(data: unknown) {
     ) {
       return null;
     }
+    const astro = isRecord(entry.astro) ? entry.astro : {};
     days.push({
       date: entry.date,
       high: day.maxtemp_c,
@@ -88,8 +130,13 @@ function parseForecast(data: unknown) {
       chanceOfRain: day.daily_chance_of_rain,
       condition: condition.text,
       icon: toHttps(condition.icon),
+      code: condition.code,
+      sunrise: optionalString(astro.sunrise),
+      sunset: optionalString(astro.sunset),
     });
   }
+
+  const hourly = parseHours(forecast.forecastday, location.localtime);
 
   return {
     location: {
@@ -109,8 +156,15 @@ function parseForecast(data: unknown) {
       windSpeed: current.wind_kph,
       condition: currentCondition.text,
       icon: toHttps(currentCondition.icon),
+      code: currentCondition.code,
+      isDay: optionalDayFlag(current.is_day),
+      uv: optionalNumber(current.uv),
+      visibility: optionalNumber(current.vis_km),
+      pressure: optionalNumber(current.pressure_mb),
+      windDirection: optionalString(current.wind_dir),
     },
     forecast: days,
+    ...(hourly.length > 0 ? { hourly } : {}),
     units: {
       temperature: "°C",
       windSpeed: "km/h",
