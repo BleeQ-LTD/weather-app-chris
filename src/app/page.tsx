@@ -11,6 +11,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
 import LocationPrompt from "@/components/LocationPrompt";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
+import CompareLink from "@/components/CompareLink";
 import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
@@ -367,7 +368,12 @@ function WeatherApp() {
             fetchedAt={view.fetchedAt}
             onRefresh={refreshWeather}
             greeting={<Greeting data={view.data} />}
-            action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
+            action={
+              <div className="flex flex-wrap items-start gap-2">
+                <SaveFavouriteButton location={view.data.location} favourites={favourites} />
+                <CompareLink location={view.data.location} />
+              </div>
+            }
           />
         )}
       </section>

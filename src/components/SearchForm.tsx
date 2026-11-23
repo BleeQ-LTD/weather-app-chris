@@ -46,6 +46,7 @@ interface SearchFormProps {
   near?: NearbyHint;
   isLoading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
+  label?: string; // for screen readers; the Compare page has "First place" and "Second place"
 }
 
 export default function SearchForm({
@@ -57,6 +58,7 @@ export default function SearchForm({
   near,
   isLoading,
   inputRef,
+  label = "City or town",
 }: SearchFormProps) {
   const labelId = useId();
   const inputId = useId();
@@ -260,7 +262,7 @@ export default function SearchForm({
   return (
     <form role="search" onSubmit={handleSubmit} noValidate className="relative">
       <label id={labelId} htmlFor={inputId} className="sr-only">
-        City or town
+        {label}
       </label>
       {/* One field holds the icon, the input and both buttons, with one focus ring around it all */}
       <div
