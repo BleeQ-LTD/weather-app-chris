@@ -1,0 +1,65 @@
+name: Publish latest version
+
+# After a production deploy finishes, tell open copies of the app that a new
+# version is live, by setting `latest_version` in Firebase Remote Config.
+# Vercel reports each deploy to GitHub; we only act on a successful Production one,
+# so the prompt never appears before the new version can actually be loaded.
+on:
+  deployment_status:
+  # Lets a maintainer publish by hand (e.g. the first time, or for App Hosting)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Full commit hash that is now live in production
+        required: true
+
+# Two deploys close together must publish in order
+concurrency:
+  group: publish-latest-version
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code (full history, to tell older commits from newer ones)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fail with a clear message instead of a confusing auth error
+      - name: Check the key is set up
+        env:
+          KEY: ${{ secrets.FIREBASE_REMOTE_CONFIG_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The FIREBASE_REMOTE_CONFIG_KEY secret is missing. See 'Update prompt' in README.md."
+            exit 1
+          fi
+
+      # A service account that can only manage Remote Config. Its key is a GitHub secret.
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_REMOTE_CONFIG_KEY }}
+
+      - name: Publish latest_version
+        env:
+          APP_VERSION: ${{ github.event.inputs.version || github.event.deployment.sha }}
+        run: node scripts/publish-latest-version.mjs

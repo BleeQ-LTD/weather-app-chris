@@ -1,4 +1,5 @@
 import packageJson from "../../package.json";
+import { APP_VERSION, shortVersion } from "@/lib/appVersion";
 import ThemeToggle from "@/components/ThemeToggle";
 
 // Footer on every page: data credits and the app version, out of the way.
@@ -20,7 +21,11 @@ export default function SiteFooter() {
           </a>{" "}
           (© OpenStreetMap contributors).
         </p>
-        <p>Version {packageJson.version}</p>
+        {/* The commit shows which build is running, e.g. after pressing Reload on the update prompt */}
+        <p>
+          Version {packageJson.version}
+          {shortVersion(APP_VERSION) && <span> ({shortVersion(APP_VERSION)})</span>}
+        </p>
       </div>
     </footer>
   );
