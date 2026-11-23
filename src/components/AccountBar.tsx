@@ -1,16 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
+import Avatar from "@/components/Avatar";
 
 // Top-right of the nav: sign-in links, "Guest", or the signed-in user's name with Sign out.
 // The friendly greeting now lives with the weather (Greeting), so this stays small.
 export default function AccountBar() {
   const authState = useAuth();
   const profileState = useProfile();
+  const pathname = usePathname();
 
   async function handleSignOut() {
     try {
@@ -53,17 +56,19 @@ export default function AccountBar() {
 
   return (
     <div className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[15px] sm:gap-2 sm:text-base">
-      {firstName && (
-        <span className="flex items-center gap-2 border-l border-line pl-2 font-semibold sm:pl-3">
-          <span
-            aria-hidden="true"
-            className="hidden h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-link sm:flex"
-          >
-            {firstName.charAt(0).toUpperCase()}
-          </span>
-          <span className="max-w-[7rem] truncate">{firstName}</span>
-        </span>
-      )}
+      {/* Photo (or initial) and first name, linking to the profile page.
+          On phones only the photo shows, to leave room in the nav. */}
+      <Link
+        href="/profile"
+        aria-current={pathname === "/profile" ? "page" : undefined}
+        className={`flex min-h-11 items-center gap-2 rounded-xl px-1.5 font-semibold hover:bg-accent-soft sm:pr-2.5 ${
+          pathname === "/profile" ? "bg-accent-soft" : ""
+        }`}
+      >
+        <Avatar photoURL={authState.user.photoURL} name={fullName} size={32} />
+        <span className="hidden max-w-[7rem] truncate sm:inline">{firstName}</span>
+        <span className="sr-only">Your profile</span>
+      </Link>
       <button
         type="button"
         onClick={handleSignOut}
