@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AccountBar from "@/components/AccountBar";
 import FavouritesNavLink from "@/components/FavouritesNavLink";
+import CompareNavLink from "@/components/CompareNavLink";
 import ThemeToggle from "@/components/ThemeToggle";
 import { LogoMark } from "@/components/icons";
 
@@ -18,9 +19,11 @@ export default function SiteHeader() {
             className="flex min-h-11 items-center gap-2 rounded-xl text-xl font-bold tracking-tight sm:gap-2.5 sm:text-[22px]"
           >
             <LogoMark size={32} />
-            Weather
+            {/* On very narrow phones only the logo shows, to leave room for the links */}
+            <span className="max-[399px]:sr-only">Weather</span>
           </Link>
           <FavouritesNavLink />
+          <CompareNavLink />
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle variant="icon" className="hidden sm:flex" />

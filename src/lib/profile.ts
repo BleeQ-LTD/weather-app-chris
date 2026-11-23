@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDocFromServer, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // The gender choices. These must match the list in firestore.rules.
@@ -19,6 +19,48 @@ export type Profile = {
 };
 
 export type NewProfile = Profile;
+
+// Must match the name length allowed in firestore.rules
+export const MAX_NAME_LENGTH = 50;
+
+// The two fields people can edit (on /complete-profile and /profile)
+export type ProfileField = "name" | "gender";
+export type ProfileFieldErrors = Partial<Record<ProfileField, string>>;
+
+// In:  what the user typed for name and picked for gender.
+// Out: a message per field that's wrong (empty object when both are fine),
+//      checked the same way firestore.rules will check them.
+export function validateProfileFields(name: string, gender: string): ProfileFieldErrors {
+  const errors: ProfileFieldErrors = {};
+  const trimmed = name.trim();
+  if (!trimmed) errors.name = "Please enter your name.";
+  else if (trimmed.length > MAX_NAME_LENGTH) errors.name = `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
+  if (!GENDER_OPTIONS.some((option) => option.value === gender)) errors.gender = "Please choose an option.";
+  return errors;
+}
+
+// Changes the name and gender at users/{uid}. Email and createdAt are left as they
+// are; the rules check the whole profile is still valid and createdAt didn't change.
+export async function updateProfileDetails(uid: string, details: Pick<Profile, "name" | "gender">) {
+  await updateDoc(doc(db, "users", uid), { name: details.name, gender: details.gender });
+}
+
+// In:  the error from saving, and whether the browser is online.
+// Out: the real reason in one sentence: offline, slow, signed out, or our side.
+export function profileSaveError(error: unknown, isOnline: boolean): string {
+  if (!isOnline) return "You're offline. Reconnect and try again.";
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code).replace(/^(firestore|auth)\//, "")
+      : "";
+  if (code === "unavailable" || code === "deadline-exceeded" || code === "network-request-failed") {
+    return "The connection is too slow right now. Try again in a moment.";
+  }
+  if (code === "unauthenticated" || code === "user-token-expired") {
+    return "You've been signed out. Sign in again, then try again.";
+  }
+  return "Something went wrong on our side. Try again in a moment.";
+}
 
 // How long to wait for Firestore before treating the connection as failed
 const PROFILE_TIMEOUT_MS = 10_000;

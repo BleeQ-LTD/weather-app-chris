@@ -8,10 +8,19 @@ function weather({
   temperature = 25,
   windSpeed = 10,
   chanceOfRain = 0,
-}: { condition?: string; temperature?: number; windSpeed?: number; chanceOfRain?: number } = {}) {
+  uv,
+  isDay,
+}: {
+  condition?: string;
+  temperature?: number;
+  windSpeed?: number;
+  chanceOfRain?: number;
+  uv?: number;
+  isDay?: boolean;
+} = {}) {
   return {
     location: { localTime: "2026-11-05 13:00" },
-    current: { condition, temperature, windSpeed },
+    current: { condition, temperature, windSpeed, uv, isDay },
     forecast: [{ chanceOfRain }],
   } as unknown as WeatherData;
 }
@@ -47,6 +56,15 @@ describe("weatherAdvice", () => {
   it("warns about heat and cold", () => {
     expect(weatherAdvice(weather({ temperature: 35 }))).toMatch(/water/);
     expect(weatherAdvice(weather({ temperature: 5 }))).toMatch(/jacket/);
+  });
+
+  it("suggests sunscreen when UV is very high in the daytime", () => {
+    expect(weatherAdvice(weather({ uv: 9, isDay: true }))).toMatch(/sunscreen/);
+    expect(weatherAdvice(weather({ uv: 5, isDay: true }))).toBe("Looks like a good day to be out.");
+  });
+
+  it("doesn't mention UV after dark", () => {
+    expect(weatherAdvice(weather({ uv: 9, isDay: false }))).toBe("Looks like a good day to be out.");
   });
 
   it("has something friendly to say on a calm day", () => {

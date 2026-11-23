@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InfoIcon, LocateIcon, LocateOffIcon, RefreshIcon } from "@/components/icons";
+import { LocateIcon, LocateOffIcon, RefreshIcon } from "@/components/icons";
 
 type Status =
   | "idle" // haven't asked yet: show the "Use my location" button
@@ -65,70 +65,84 @@ export default function LocationPrompt({
 
   if (status === "locating") {
     return (
-      <div className="flex items-center justify-center gap-3 rounded-[28px] bg-surface px-6 py-10">
+      <div className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-4">
         <span
           aria-hidden="true"
-          className="h-5 w-5 rounded-full border-[3px] border-line border-t-rain motion-safe:animate-spin"
+          className="h-5 w-5 shrink-0 rounded-full border-[3px] border-line border-t-rain motion-safe:animate-spin"
         />
         <p role="status" className="font-medium text-muted">Finding your location…</p>
       </div>
     );
   }
 
-  const isFirstVisit = status === "idle";
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col items-center gap-3.5 rounded-[28px] bg-surface px-6 pt-7 pb-6 text-center sm:px-8 sm:pt-8">
-        {isFirstVisit ? (
-          <LocationArt />
-        ) : (
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-sun-soft text-sun-ink">
-            <LocateOffIcon size={30} />
-          </span>
-        )}
-        <h2 className={`font-bold tracking-tight ${isFirstVisit ? "text-2xl" : "text-[22px]"}`}>
-          {isFirstVisit ? "See the weather where you are" : "Location is off"}
-        </h2>
-        <p className="leading-relaxed text-muted" role={isFirstVisit ? undefined : "status"}>
-          {status === "idle" && "Allow location access and we'll show your local weather. Or search for any city above."}
-          {status === "denied" &&
-            "No problem. Search for a city above. To use your location later, allow it in your browser's site settings, then try again."}
-          {status === "unavailable" && "We couldn't find your location just now. Try again, or search for a city above."}
-          {status === "unsupported" && "Your browser can't share your location. Search for a city above instead."}
-        </p>
-
-        {status !== "unsupported" && (
-          <button
-            type="button"
-            onClick={() => locate(onLocated, setStatus)}
-            className={`mt-1 flex w-full items-center justify-center gap-2 rounded-[14px] font-semibold ${
-              isFirstVisit
-                ? "h-[52px] bg-rain text-white hover:brightness-110"
-                : "h-12 border-[1.5px] border-link bg-surface text-link hover:bg-accent-soft"
-            }`}
-          >
-            {isFirstVisit ? <LocateIcon size={20} /> : <RefreshIcon size={18} />}
-            {isFirstVisit ? "Use my location" : "Try again"}
-          </button>
-        )}
-        {isFirstVisit && <p className="text-[13px] text-muted">We only use it to find your forecast.</p>}
+  // Location couldn't be used: a compact card that says why, with Try again next to it
+  if (status !== "idle") {
+    const { title, reason } = PROBLEMS[status];
+    return (
+      <div role="status" className="flex items-start gap-3 rounded-2xl bg-surface p-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sun-soft text-sun-ink">
+          <LocateOffIcon size={20} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">{title}</h2>
+          <p className="mt-0.5 text-sm leading-relaxed text-muted">{reason}</p>
+          {status !== "unsupported" && (
+            <button
+              type="button"
+              onClick={() => locate(onLocated, setStatus)}
+              className="mt-2.5 flex h-11 items-center gap-1.5 rounded-xl border-[1.5px] border-link px-3.5 text-sm font-semibold text-link hover:bg-accent-soft"
+            >
+              <RefreshIcon size={16} />
+              Try again
+            </button>
+          )}
+        </div>
       </div>
+    );
+  }
 
-      {status === "denied" && (
-        <p className="flex items-start gap-2.5 rounded-[18px] bg-accent-soft px-4 py-3.5 text-left text-sm leading-relaxed">
-          <InfoIcon size={20} className="mt-px shrink-0 text-link" />
-          Tip: tap the lock or settings icon next to the web address to change location access.
-        </p>
-      )}
+  // First visit: a friendly offer, kept short so the search box stays the focus
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-[28px] bg-surface px-6 pt-6 pb-5 text-center sm:px-8">
+      <LocationArt />
+      <h2 className="text-[22px] font-bold tracking-tight sm:text-2xl">See the weather where you are</h2>
+      <p className="leading-relaxed text-muted">
+        Allow location access and we&apos;ll show your local weather. Or search for any city above.
+      </p>
+      <button
+        type="button"
+        onClick={() => locate(onLocated, setStatus)}
+        className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-rain font-semibold text-white hover:brightness-110"
+      >
+        <LocateIcon size={20} />
+        Use my location
+      </button>
+      <p className="text-[13px] text-muted">We only use it to find your forecast.</p>
     </div>
   );
 }
 
+// Why location couldn't be used, in plain words, with what to do next
+const PROBLEMS: Record<Exclude<Status, "idle" | "locating">, { title: string; reason: string }> = {
+  denied: {
+    title: "Location is off",
+    reason:
+      "Search for a city above. To use your location, allow it in your browser's site settings (the lock icon next to the address), then try again.",
+  },
+  unavailable: {
+    title: "Couldn't find your location",
+    reason: "Your device didn't get a position in time. Try again, or search for a city above.",
+  },
+  unsupported: {
+    title: "Location isn't available",
+    reason: "Your browser can't share your location. Search for a city above instead.",
+  },
+};
+
 // A pin with the sun behind it, for the first-visit card
 function LocationArt() {
   return (
-    <svg width="112" height="112" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <svg width="84" height="84" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
       <circle cx="32" cy="32" r="30" className="fill-accent-soft" />
       <circle cx="44" cy="20" r="7" fill="#F59E0B" />
       <path d="M44 8.5v2.5M55.5 20H53M52.1 11.9l-1.8 1.8M35.9 11.9l1.8 1.8" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" />

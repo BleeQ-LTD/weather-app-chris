@@ -10,20 +10,28 @@ import {
   useState,
 } from "react";
 import { Suggestion, formatPlace, kindLabel, matchesPlace } from "@/lib/weather";
-import { AlertIcon, CloseIcon, PinIcon, SearchIcon } from "@/components/icons";
+import { AlertIcon, CloseIcon, HistoryIcon, PinIcon, SearchIcon } from "@/components/icons";
+import {
+  clearRecent,
+  forgetPlace,
+  recentAsSuggestion,
+  recentKey,
+  useRecentPlaces,
+} from "@/lib/searchHistory";
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
 
 // Example places shown in the empty search box when we don't know where the
 // user is: one after another, from different continents
+// Kept short so "Try "…"" fits in the box on a phone
 const PLACEHOLDER_PLACES = [
   "Lagos, Nigeria",
-  "London, United Kingdom",
-  "New York, United States",
+  "London, UK",
+  "New York, USA",
   "Nairobi, Kenya",
   "Tokyo, Japan",
-  "São Paulo, Brazil",
+  "Accra, Ghana",
 ];
 const PLACEHOLDER_INTERVAL_MS = 2500;
 
@@ -45,6 +53,7 @@ interface SearchFormProps {
   near?: NearbyHint;
   isLoading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
+  label?: string; // for screen readers; the Compare page has "First place" and "Second place"
 }
 
 export default function SearchForm({
@@ -56,10 +65,10 @@ export default function SearchForm({
   near,
   isLoading,
   inputRef,
+  label = "City or town",
 }: SearchFormProps) {
   const labelId = useId();
   const inputId = useId();
-  const hintId = useId();
   const errorId = useId();
   const listId = useId();
 
@@ -70,6 +79,12 @@ export default function SearchForm({
   const [noMatchesFor, setNoMatchesFor] = useState("");
   const [isFetching, setIsFetching] = useState(false); // waiting for suggestions
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  // Recent searches show while the box is focused and empty; typing hands over to suggestions
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const recent = useRecentPlaces();
+  const historyLabelId = useId();
+  const historyMode = historyOpen && value === "" && recent.length > 0;
+  const clearIndex = recent.length; // "Clear recent searches" is the last option
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRequest = useRef<AbortController | null>(null);
@@ -191,7 +206,25 @@ export default function SearchForm({
     onChange(formatPlace(suggestion));
     setSuggestions([]);
     closeList();
+    setHistoryOpen(false);
     onSelectSuggestion(suggestion);
+  }
+
+  // A recent search was chosen: open it straight away, or clear them all
+  function pickRecent(index: number) {
+    if (index === clearIndex) {
+      clearRecent();
+      setHistoryOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+    selectSuggestion(recentAsSuggestion(recent[index]));
+  }
+
+  function removeRecentAt(index: number) {
+    forgetPlace(recentKey(recent[index]));
+    // Keep the highlight on the next item (or the new last one)
+    setActiveIndex(recent.length - 1 === 0 ? -1 : Math.min(index, recent.length - 2));
   }
 
   // The × button: empty the box, hide suggestions and messages, and let the page
@@ -204,9 +237,51 @@ export default function SearchForm({
     setValidationError("");
     onClear();
     inputRef.current?.focus();
+    setHistoryOpen(true); // the box is empty again, so show recent searches
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Recent searches: arrows move, Enter opens, Delete removes, Escape closes
+    if (historyMode) {
+      const total = recent.length + 1; // places + "Clear recent searches"
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          setActiveIndex((index) => (index + 1) % total);
+          return;
+        case "ArrowUp":
+          event.preventDefault();
+          setActiveIndex((index) => (index <= 0 ? total - 1 : index - 1));
+          return;
+        case "Enter":
+          if (activeIndex >= 0) {
+            event.preventDefault();
+            pickRecent(activeIndex);
+          }
+          return;
+        case "Delete":
+          if (activeIndex >= 0 && activeIndex < recent.length) {
+            event.preventDefault();
+            removeRecentAt(activeIndex);
+          }
+          return;
+        case "Escape":
+          event.preventDefault();
+          setHistoryOpen(false);
+          setActiveIndex(-1);
+          return;
+      }
+      return;
+    }
+
+    // Down arrow in an empty box brings recent searches back after Escape
+    if (event.key === "ArrowDown" && value === "" && recent.length > 0) {
+      event.preventDefault();
+      setHistoryOpen(true);
+      setActiveIndex(0);
+      return;
+    }
+
     const count = suggestions.length;
 
     switch (event.key) {
@@ -242,6 +317,7 @@ export default function SearchForm({
     event.preventDefault(); // stop the browser reloading the page
     cancelPending();
     closeList();
+    setHistoryOpen(false);
 
     const trimmed = value.trim();
     if (!trimmed) {
@@ -254,16 +330,14 @@ export default function SearchForm({
     onSearch(trimmed);
   }
 
-  const listVisible = isOpen && suggestions.length > 0;
+  const listVisible = !historyMode && isOpen && suggestions.length > 0;
+  const anyListOpen = listVisible || historyMode;
   const optionId = (index: number) => `${listId}-option-${index}`;
-  const describedBy = [hintId, validationError ? errorId : null]
-    .filter(Boolean)
-    .join(" ");
 
   return (
     <form role="search" onSubmit={handleSubmit} noValidate className="relative">
       <label id={labelId} htmlFor={inputId} className="sr-only">
-        City or town
+        {label}
       </label>
       {/* One field holds the icon, the input and both buttons, with one focus ring around it all */}
       <div
@@ -281,22 +355,25 @@ export default function SearchForm({
             role="combobox"
             autoComplete="off"
             aria-autocomplete="list"
-            aria-expanded={listVisible}
+            aria-expanded={anyListOpen}
             aria-controls={listId}
             aria-activedescendant={
-              listVisible && activeIndex >= 0 ? optionId(activeIndex) : undefined
+              anyListOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
             }
-            aria-describedby={describedBy}
+            // Linked to the error message only while there is one
+            aria-describedby={validationError ? errorId : undefined}
             aria-invalid={validationError ? true : undefined}
             value={value}
             placeholder={`Try "${examples[placeholderIndex % examples.length]}"`}
             onChange={(event) => handleInput(event.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setHistoryOpen(true)}
             onBlur={() => {
               cancelPending();
               closeList();
+              setHistoryOpen(false);
             }}
-            className="h-full w-full min-w-0 bg-transparent pr-2 pl-1.5 text-base text-ink placeholder:text-muted"
+            className="h-full w-full min-w-0 bg-transparent pr-2 pl-1.5 text-base text-ellipsis text-ink placeholder:text-muted"
           />
 
           {isFetching && (
@@ -329,6 +406,69 @@ export default function SearchForm({
         </button>
       </div>
 
+      {/* Recent searches: same look as suggestions, shown while the box is focused and empty */}
+      {historyMode && (
+        <div className="absolute inset-x-0 top-full z-20 mt-2 rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
+          <p id={historyLabelId} className="px-3 pt-1.5 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">
+            Recent searches
+          </p>
+          <ul id={listId} role="listbox" aria-labelledby={historyLabelId}>
+            {recent.map((place, index) => {
+              const isActive = index === activeIndex;
+              const label = formatPlace(recentAsSuggestion(place));
+              const rest = label.slice(place.name.length + 2);
+              return (
+                <li
+                  key={recentKey(place)}
+                  id={optionId(index)}
+                  role="option"
+                  aria-selected={isActive}
+                  onMouseDown={(event) => event.preventDefault()} // keep focus in the box
+                  onClick={() => pickRecent(index)}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl py-1 pr-1 pl-3 ${
+                    isActive ? "bg-accent-soft" : ""
+                  }`}
+                >
+                  <HistoryIcon size={18} className={`shrink-0 ${isActive ? "text-link" : "text-muted"}`} />
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-semibold">{place.name}</span>
+                    {rest && <span className="text-muted">, {rest}</span>}
+                  </span>
+                  {/* For mouse and touch. Keyboard and screen-reader users press Delete instead,
+                      because a button can't sit inside a list option. */}
+                  <span
+                    aria-hidden="true"
+                    title={`Remove ${label}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeRecentAt(index);
+                    }}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-alert"
+                  >
+                    <CloseIcon size={16} />
+                  </span>
+                </li>
+              );
+            })}
+            <li
+              id={optionId(clearIndex)}
+              role="option"
+              aria-selected={activeIndex === clearIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => pickRecent(clearIndex)}
+              onMouseEnter={() => setActiveIndex(clearIndex)}
+              className={`mt-1 flex min-h-11 cursor-pointer items-center rounded-xl border-t border-line px-3 text-sm font-semibold text-link ${
+                activeIndex === clearIndex ? "bg-accent-soft" : ""
+              }`}
+            >
+              Clear recent searches
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {!historyMode && (
       <ul
         id={listId}
         role="listbox"
@@ -365,11 +505,7 @@ export default function SearchForm({
           );
         })}
       </ul>
-
-      {/* Kept for screen readers; the rotating example in the box shows the same thing visually */}
-      <p id={hintId} className="sr-only">
-        Start typing, then pick a place from the list, for example Lagos, Nigeria.
-      </p>
+      )}
 
       {validationError && (
         <p id={errorId} className="mt-2 flex items-center gap-1.5 px-1 text-sm font-medium text-alert">
@@ -386,7 +522,9 @@ export default function SearchForm({
 
       {/* Tells screen-reader users suggestions appeared */}
       <p role="status" className="sr-only">
-        {isFetching
+        {historyMode
+          ? `${recent.length} recent ${recent.length === 1 ? "search" : "searches"}. Use up and down arrows to choose, Enter to open, Delete to remove.`
+          : isFetching
           ? "Looking for places…"
           : listVisible
           ? `${suggestions.length} ${suggestions.length === 1 ? "suggestion" : "suggestions"}. Use up and down arrows to choose.`

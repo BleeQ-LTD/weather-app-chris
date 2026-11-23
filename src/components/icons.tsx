@@ -46,7 +46,14 @@ export const PinIcon = (p: IconProps) => (
   </Icon>
 );
 
-export const StarIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+export const HistoryIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" />
+    <path d="M3 3v5h5M12 7v5l3 2" />
+  </Icon>
+);
+
+export const StarIcon =({ filled, ...p }: IconProps & { filled?: boolean }) => (
   <Icon {...p} fill={filled ? "currentColor" : "none"}>
     <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z" />
   </Icon>

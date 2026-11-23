@@ -125,10 +125,18 @@ export default function WeatherResults({
               >
                 {location.name}
               </h2>
-              {place && <p className="text-[15px] text-hero-muted sm:text-base">{place}</p>}
+              {/* Country and local time share one line, so the greeting block stays compact */}
               <p className="text-[15px] text-hero-muted sm:text-base">
-                <span className="sr-only">Local time </span>
-                <time dateTime={local.date}>{formatDay(local.date)}</time>, {formatClock(local.time)}
+                {place && (
+                  <>
+                    <span>{place}</span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
+                <span className="whitespace-nowrap">
+                  <span className="sr-only">Local time </span>
+                  <time dateTime={local.date}>{formatDay(local.date)}</time>, {formatClock(local.time)}
+                </span>
               </p>
             </div>
 

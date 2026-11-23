@@ -7,14 +7,17 @@ import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
 import ProfileError from "@/components/ProfileError";
 import Select from "@/components/Select";
-import { createProfile, GENDER_OPTIONS, type Profile } from "@/lib/profile";
+import {
+  createProfile,
+  GENDER_OPTIONS,
+  MAX_NAME_LENGTH,
+  validateProfileFields,
+  type Profile,
+  type ProfileFieldErrors as FieldErrors,
+} from "@/lib/profile";
 
-const MAX_NAME_LENGTH = 50;
 const inputClass =
   "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-rain aria-invalid:border-alert";
-
-type Field = "name" | "gender";
-type FieldErrors = Partial<Record<Field, string>>;
 
 // Google sign-in is also sign-up: it creates an account if none exists, but Google
 // doesn't tell us the user's gender. So a new Google user finishes their profile here.
@@ -68,10 +71,7 @@ function CompleteProfileForm({ user, onSaved }: { user: User; onSaved: (profile:
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const errors: FieldErrors = {};
-    if (!name.trim()) errors.name = "Please enter your name.";
-    else if (name.trim().length > MAX_NAME_LENGTH) errors.name = `Name must be ${MAX_NAME_LENGTH} characters or fewer.`;
-    if (!gender) errors.gender = "Please choose an option.";
+    const errors = validateProfileFields(name, gender);
     setFieldErrors(errors);
     setError("");
     if (Object.values(errors).some(Boolean)) return;
