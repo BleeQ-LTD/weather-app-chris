@@ -15,6 +15,7 @@ import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
 import Greeting from "@/components/Greeting";
+import { rememberPlace } from "@/lib/searchHistory";
 import { CloudOffIcon, RefreshIcon, SearchIcon } from "@/components/icons";
 
 
@@ -31,6 +32,7 @@ type ViewState =
       label: string;
       place?: Suggestion;
       searchText?: string; // set when place search failed, so "Try again" re-runs the search
+      remember?: boolean; // whether a successful retry should go into recent searches
     };
 
 const MIN_SEARCH_LENGTH = 2; // the search route needs at least 2 characters
@@ -73,7 +75,8 @@ function WeatherApp() {
       label: string,
       controller = startRequest(),
       place?: Suggestion,
-      keepCurrent = false // true for the automatic refresh: keep showing the weather while new data loads
+      keepCurrent = false, // true for the automatic refresh: keep showing the weather while new data loads
+      remember = false // true when the user opened this place (suggestion, Search, favourite): add it to recent searches
     ) => {
       lastRequest.current = { apiQuery, label, place };
       if (!keepCurrent) setView({ status: "loading", query: label });
@@ -107,6 +110,8 @@ function WeatherApp() {
                 }
               : data,
           });
+          // Only once the weather has actually loaded, so failed lookups never go into history
+          if (place && remember) rememberPlace(place);
           return;
         }
 
@@ -124,6 +129,7 @@ function WeatherApp() {
           query: apiQuery,
           label,
           place,
+          remember,
         });
       } catch {
         if (!isCurrent(controller)) return; // replaced by a newer search
@@ -133,6 +139,7 @@ function WeatherApp() {
           query: apiQuery,
           label,
           place,
+          remember,
         });
       }
     },
@@ -191,7 +198,7 @@ function WeatherApp() {
 
       const [best] = matching;
       setQuery(formatPlace(best));
-      fetchWeather(weatherQueryFor(best), formatPlace(best), controller, best);
+      fetchWeather(weatherQueryFor(best), formatPlace(best), controller, best, false, true);
     },
     [fetchWeather]
   );
@@ -200,7 +207,7 @@ function WeatherApp() {
   function choosePlace(place: Suggestion) {
     const label = formatPlace(place);
     setQuery(label);
-    fetchWeather(weatherQueryFor(place), label, undefined, place);
+    fetchWeather(weatherQueryFor(place), label, undefined, place, false, true);
   }
 
   // Every 15 minutes, quietly repeat the last request so the weather stays up to date
@@ -261,15 +268,22 @@ function WeatherApp() {
     (favourite: Favourite) => {
       const label = favouriteLabel(favourite);
       setQuery(label);
-      fetchWeather(`${favourite.lat},${favourite.lon}`, label, undefined, {
-        id: favourite.id,
-        name: favourite.name,
-        region: favourite.region,
-        country: favourite.country,
-        lat: favourite.lat,
-        lon: favourite.lon,
-        kind: "city",
-      });
+      fetchWeather(
+        `${favourite.lat},${favourite.lon}`,
+        label,
+        undefined,
+        {
+          id: favourite.id,
+          name: favourite.name,
+          region: favourite.region,
+          country: favourite.country,
+          lat: favourite.lat,
+          lon: favourite.lon,
+          kind: "city",
+        },
+        false,
+        true // opening a favourite counts as a search
+      );
     },
     [fetchWeather]
   );
@@ -348,7 +362,7 @@ function WeatherApp() {
                 onClick={() =>
                   view.searchText
                     ? handleSearch(view.searchText)
-                    : fetchWeather(view.query, view.label, undefined, view.place)
+                    : fetchWeather(view.query, view.label, undefined, view.place, false, view.remember)
                 }
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-rain font-semibold text-white hover:brightness-110"
               >
