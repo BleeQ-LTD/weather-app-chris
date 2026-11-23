@@ -14,7 +14,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, deleteField, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 
 let testEnv: RulesTestEnvironment;
 
@@ -217,5 +217,44 @@ describe("everything else is denied by default", () => {
 
   it("stops a signed-in user writing to an unknown collection", async () => {
     await assertFails(setDoc(doc(alice(), "admin/settings"), { open: true }));
+  });
+});
+// ---------- Profile photo (stored on the profile as a small JPEG, see firestore.rules) ----------
+
+// A tiny valid JPEG data URL, like the one the app makes after shrinking a photo
+const smallPhoto = () => `data:image/jpeg;base64,${"/9j/4AAQSkZJRgABAQ".padEnd(2000, "A")}==`;
+
+describe("profile photo", () => {
+  it("lets Alice add a small JPEG photo to her profile", async () => {
+    await seedAliceData();
+    await assertSucceeds(updateDoc(doc(alice(), "users/alice"), { photo: smallPhoto() }));
+  });
+
+  it("lets Alice remove her photo again", async () => {
+    await seedAliceData();
+    await updateDoc(doc(alice(), "users/alice"), { photo: smallPhoto() });
+    await assertSucceeds(updateDoc(doc(alice(), "users/alice"), { photo: deleteField() }));
+  });
+
+  it("rejects a photo over 60,000 characters", async () => {
+    await seedAliceData();
+    const tooBig = `data:image/jpeg;base64,${"A".repeat(60000)}`;
+    await assertFails(updateDoc(doc(alice(), "users/alice"), { photo: tooBig }));
+  });
+
+  it("rejects a photo that isn't a JPEG image (e.g. a link or other text)", async () => {
+    await seedAliceData();
+    await assertFails(updateDoc(doc(alice(), "users/alice"), { photo: "https://example.com/me.jpg" }));
+    await assertFails(updateDoc(doc(alice(), "users/alice"), { photo: "data:text/html;base64,PGgxPg==" }));
+  });
+
+  it("rejects a photo that isn't text", async () => {
+    await seedAliceData();
+    await assertFails(updateDoc(doc(alice(), "users/alice"), { photo: 123 }));
+  });
+
+  it("stops Bob changing Alice's photo", async () => {
+    await seedAliceData();
+    await assertFails(updateDoc(doc(bob(), "users/alice"), { photo: smallPhoto() }));
   });
 });

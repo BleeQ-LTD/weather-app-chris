@@ -65,7 +65,12 @@ export default function AccountBar() {
           pathname === "/profile" ? "bg-accent-soft" : ""
         }`}
       >
-        <Avatar photoURL={authState.user.photoURL} name={fullName} size={32} />
+        {/* Their own photo first, then the Google one, then their initial */}
+        <Avatar
+          photoURL={(profileState.status === "ready" && profileState.profile.photo) || authState.user.photoURL}
+          name={fullName}
+          size={32}
+        />
         <span className="hidden max-w-[7rem] truncate sm:inline">{firstName}</span>
         <span className="sr-only">Your profile</span>
       </Link>
