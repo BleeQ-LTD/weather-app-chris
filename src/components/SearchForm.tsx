@@ -59,7 +59,6 @@ export default function SearchForm({
 }: SearchFormProps) {
   const labelId = useId();
   const inputId = useId();
-  const hintId = useId();
   const errorId = useId();
   const listId = useId();
 
@@ -256,9 +255,6 @@ export default function SearchForm({
 
   const listVisible = isOpen && suggestions.length > 0;
   const optionId = (index: number) => `${listId}-option-${index}`;
-  const describedBy = [hintId, validationError ? errorId : null]
-    .filter(Boolean)
-    .join(" ");
 
   return (
     <form role="search" onSubmit={handleSubmit} noValidate className="relative">
@@ -286,7 +282,8 @@ export default function SearchForm({
             aria-activedescendant={
               listVisible && activeIndex >= 0 ? optionId(activeIndex) : undefined
             }
-            aria-describedby={describedBy}
+            // Linked to the error message only while there is one
+            aria-describedby={validationError ? errorId : undefined}
             aria-invalid={validationError ? true : undefined}
             value={value}
             placeholder={`Try "${examples[placeholderIndex % examples.length]}"`}
@@ -365,11 +362,6 @@ export default function SearchForm({
           );
         })}
       </ul>
-
-      {/* Kept for screen readers; the rotating example in the box shows the same thing visually */}
-      <p id={hintId} className="sr-only">
-        Start typing, then pick a place from the list, for example Lagos, Nigeria.
-      </p>
 
       {validationError && (
         <p id={errorId} className="mt-2 flex items-center gap-1.5 px-1 text-sm font-medium text-alert">

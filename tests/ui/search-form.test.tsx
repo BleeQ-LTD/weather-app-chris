@@ -102,3 +102,20 @@ describe("SearchForm suggestions", () => {
     expect(input).toHaveAttribute("aria-expanded", "false");
   });
 });
+describe("SearchForm description", () => {
+  it("has no helper text, and only points to the error while there is one", async () => {
+    const { user, input, onSearch } = setup();
+
+    expect(screen.queryByText(/Start typing, then pick a place/)).not.toBeInTheDocument();
+    expect(input).not.toHaveAttribute("aria-describedby");
+
+    // Searching with an empty box shows the error and links it to the box
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(input).toHaveAccessibleDescription("Enter a city or town name.");
+
+    // Typing clears the error and the link
+    await user.type(input, "L");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
+});
