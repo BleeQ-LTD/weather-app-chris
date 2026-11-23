@@ -17,13 +17,14 @@ const DEBOUNCE_MS = 300;
 
 // Example places shown in the empty search box when we don't know where the
 // user is: one after another, from different continents
+// Kept short so "Try "…"" fits in the box on a phone
 const PLACEHOLDER_PLACES = [
   "Lagos, Nigeria",
-  "London, United Kingdom",
-  "New York, United States",
+  "London, UK",
+  "New York, USA",
   "Nairobi, Kenya",
   "Tokyo, Japan",
-  "São Paulo, Brazil",
+  "Accra, Ghana",
 ];
 const PLACEHOLDER_INTERVAL_MS = 2500;
 
@@ -293,7 +294,7 @@ export default function SearchForm({
               cancelPending();
               closeList();
             }}
-            className="h-full w-full min-w-0 bg-transparent pr-2 pl-1.5 text-base text-ink placeholder:text-muted"
+            className="h-full w-full min-w-0 bg-transparent pr-2 pl-1.5 text-base text-ellipsis text-ink placeholder:text-muted"
           />
 
           {isFetching && (

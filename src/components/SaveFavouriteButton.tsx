@@ -6,6 +6,7 @@ import { favouriteId, removeFavourite, saveFavourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
 import type { WeatherData } from "@/lib/weather";
 import { AlertIcon, CheckIcon, StarIcon } from "@/components/icons";
+import { browserIsOnline, favouriteErrorReason } from "@/lib/favouriteErrors";
 
 const CONFIRMATION_MS = 3000; // how long the "Saved" message stays visible
 const TIP_SEEN_KEY = "weather-app:save-tip-seen"; // remembered so the tip only shows once
@@ -92,8 +93,16 @@ export default function SaveFavouriteButton({
     setError("");
     setConfirmation("");
     const wasSaved = isSaved;
-    const change = wasSaved ? removeFavourite(uid, id) : saveFavourite(uid, place);
+    const failed = `Couldn't ${wasSaved ? "remove" : "save"} this place.`;
 
+    // Offline, Firestore would wait silently until the connection returns,
+    // so say so straight away instead of leaving the button doing nothing
+    if (!browserIsOnline()) {
+      setError(`${failed} ${favouriteErrorReason(null, false)}`);
+      return;
+    }
+
+    const change = wasSaved ? removeFavourite(uid, id) : saveFavourite(uid, place);
     change
       .then(() => {
         // Only confirm once Firestore has actually stored the change
@@ -101,7 +110,7 @@ export default function SaveFavouriteButton({
       })
       .catch((err) => {
         console.error("[favourites] Could not update favourite:", err);
-        setError("Couldn't update your favourites. Check your connection and try again.");
+        setError(`${failed} ${favouriteErrorReason(err, browserIsOnline())}`);
       });
   }
 
