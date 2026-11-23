@@ -1,0 +1,95 @@
+name: Deploy Firestore rules
+
+# Firestore security rules go live only from here: after a merge to main
+# changes them, and only once the rules tests pass. Never deploy from a laptop.
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firebase.json
+      - tests-rules/**
+      - .github/workflows/deploy-firestore-rules.yml
+  # Lets a maintainer re-run a deploy from the Actions tab (e.g. the first time)
+  workflow_dispatch:
+
+# Two merges close together must not deploy out of order
+concurrency:
+  group: deploy-firestore-rules
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_PROJECT_ID: weather-app-6c101
+
+jobs:
+  test-rules:
+    name: Test the rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The Firestore emulator runs on Java
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache Firebase emulators
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Firestore security rules tests
+        run: npm run test:rules
+
+  deploy-rules:
+    name: Deploy the rules
+    needs: test-rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fail with a clear message instead of a confusing auth error
+      - name: Check the deploy key is set up
+        env:
+          KEY: ${{ secrets.FIREBASE_RULES_DEPLOY_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The FIREBASE_RULES_DEPLOY_KEY secret is missing. See 'Deploying Firestore rules' in README.md."
+            exit 1
+          fi
+
+      # Signs in as a service account that can only manage security rules.
+      # The key lives in a GitHub secret and is never printed or committed.
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_RULES_DEPLOY_KEY }}
+
+      - name: Deploy Firestore rules
+        run: npx firebase deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive
