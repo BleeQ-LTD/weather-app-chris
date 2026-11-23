@@ -1,14 +1,171 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the data-theme attribute set in layout.tsx, not just the device setting */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---- Light theme (default) ---- */
 :root {
-  --sky: #e8eef1;     /* page background: overcast sky */
-  --surface: #f6f8f9; /* inputs and buttons */
-  --ink: #15222b;     /* main text */
-  --muted: #53636d;   /* secondary text */
-  --line: #c7d3d9;    /* borders and dividers */
-  --rain: #2a679a;    /* primary actions, cool end of temperature bars */
-  --sun: #d48a24;     /* warm end of temperature bars */
-  --alert: #a3362a;   /* errors */
+  color-scheme: light;
+  --sky: #edf2f8;         /* page background */
+  --surface: #ffffff;     /* cards, inputs and buttons */
+  --ink: #14202e;         /* main text */
+  --muted: #56657a;       /* secondary text (5.1:1 on the page, 5.8:1 on cards) */
+  --line: #dce3ec;        /* dividers and card borders */
+  --control: #7d8ca0;     /* input borders (3:1 against cards) */
+  --rain: #1d5bd6;        /* primary buttons (white text on top) */
+  --link: #1d5bd6;        /* links and blue text */
+  --focus: #1d5bd6;       /* keyboard focus ring */
+  --accent-soft: #e5edfb; /* icon chips, "Now", selected suggestion */
+  --sun: #f5a524;         /* sun icons, warm end of temperature bars */
+  --sun-ink: #9a5b00;     /* warm text and icons on light backgrounds */
+  --sun-soft: #fff1d6;    /* warm icon chips */
+  --ok: #1d6b45;          /* confirmations */
+  --alert: #b42318;       /* errors */
+  --alert-soft: #feeceb;
+  --track: #e4eaf2;       /* empty part of bars */
+  --bar-cool: #7daae8;
+  --shadow: 0 12px 32px rgb(20 32 46 / 0.14);
+
+  /* Weather icons */
+  --cloud: #ffffff;
+  --cloud-dark: #e8edf4;
+  --cloud-stroke: #7f8fa6;
+  --drop: #2f6fd6;
+  --moon: #6e7fcb;
+}
+
+/* ---- Dark theme ---- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --sky: #0b1220;
+  --surface: #141d2e;
+  --ink: #eaf0f8;
+  --muted: #9aa8bd;
+  --line: #243049;
+  --control: #5e6f8e;
+  --rain: #3466d8;        /* still passes 4.5:1 with white text */
+  --link: #8dbbff;
+  --focus: #8dbbff;
+  --accent-soft: #1b2a47;
+  --sun: #ffb547;
+  --sun-ink: #ffc266;
+  --sun-soft: #33270f;
+  --ok: #6fdca6;
+  --alert: #ff8f85;
+  --alert-soft: #3a1c1e;
+  --track: #243049;
+  --bar-cool: #5e9bff;
+  --shadow: 0 16px 40px rgb(0 0 0 / 0.55);
+
+  --cloud: #e3e9f2;
+  --cloud-dark: #aebbd0;
+  --cloud-stroke: #aebbd0;
+  --drop: #7ab0ff;
+  --moon: #f3dfa2;
+}
+
+/* ---- Hero card backgrounds: they follow the weather ---- */
+.hero-sun {
+  --hero-bg: linear-gradient(165deg, #ffebc0 0%, #ffd796 52%, #fcbf7c 100%);
+  --hero-ink: #14202e;
+  --hero-muted: #5c4316;
+  --hero-panel: rgb(255 255 255 / 0.62);
+  --hero-icon: #9a5b00;
+  --hero-toggle: rgb(255 255 255 / 0.5);
+  --hero-on: #14202e;
+  --hero-on-ink: #ffffff;
+  --hero-save: #ffffff;
+  --hero-save-line: rgb(20 32 46 / 0.16);
+  --hero-ok: #1d6b45;
+  --hero-err: #9b1c12;
+  --halo: #fff4d6;
+  --halo-opacity: 0.8;
+}
+.hero-rain {
+  --hero-bg: linear-gradient(165deg, #e4eaf2 0%, #c9d4e2 55%, #aebdd0 100%);
+  --hero-ink: #14202e;
+  --hero-muted: #33445a;
+  --hero-panel: rgb(255 255 255 / 0.62);
+  --hero-icon: #1d5bd6;
+  --hero-toggle: rgb(255 255 255 / 0.5);
+  --hero-on: #14202e;
+  --hero-on-ink: #ffffff;
+  --hero-save: #ffffff;
+  --hero-save-line: rgb(20 32 46 / 0.16);
+  --hero-ok: #175c3b;
+  --hero-err: #9b1c12;
+  --halo: transparent;
+  --halo-opacity: 0;
+  /* icons sit on a grey-blue card, so give them a little more contrast */
+  --cloud: #f4f7fb;
+  --cloud-dark: #f4f7fb;
+  --cloud-stroke: #5e708a;
+  --drop: #1d5bd6;
+}
+.hero-night {
+  --hero-bg: radial-gradient(90% 70% at 85% 10%, rgb(120 140 255 / 0.22) 0%, rgb(0 0 0 / 0) 60%),
+    linear-gradient(165deg, #22386a 0%, #172a52 50%, #0e1a35 100%);
+  --hero-ink: #ffffff;
+  --hero-muted: #c5d0e8;
+  --hero-panel: rgb(255 255 255 / 0.1);
+  --hero-icon: #f3dfa2;
+  --hero-toggle: rgb(255 255 255 / 0.12);
+  --hero-on: #ffffff;
+  --hero-on-ink: #14202e;
+  --hero-save: rgb(255 255 255 / 0.08);
+  --hero-save-line: rgb(255 255 255 / 0.28);
+  --hero-ok: #7be0ae;
+  --hero-err: #ffc2b8;
+  --halo: #2c4580;
+  --halo-opacity: 0.6;
+  --cloud: #e3e9f2;
+  --cloud-dark: #aebbd0;
+  --cloud-stroke: #aebbd0;
+  --drop: #7ab0ff;
+  --moon: #f3dfa2;
+}
+[data-theme="dark"] .hero-sun {
+  --hero-bg: radial-gradient(120% 90% at 90% 6%, rgb(255 176 64 / 0.55) 0%, rgb(255 140 60 / 0.16) 38%, rgb(0 0 0 / 0) 62%),
+    linear-gradient(165deg, #35271a 0%, #1f1c27 55%, #151c2e 100%);
+  --hero-ink: #fff7ec;
+  --hero-muted: #f1d3a6;
+  --hero-panel: rgb(255 255 255 / 0.08);
+  --hero-icon: #ffc266;
+  --hero-toggle: rgb(255 255 255 / 0.1);
+  --hero-on: #fff7ec;
+  --hero-on-ink: #1a1712;
+  --hero-save: rgb(255 255 255 / 0.08);
+  --hero-save-line: rgb(255 255 255 / 0.24);
+  --hero-ok: #7be0ae;
+  --hero-err: #ffc2b8;
+  --halo: #ffb547;
+  --halo-opacity: 0.28;
+}
+[data-theme="dark"] .hero-rain {
+  --hero-bg: linear-gradient(165deg, #2c3d57 0%, #1f2c42 55%, #162033 100%);
+  --hero-ink: #eaf0f8;
+  --hero-muted: #b7c4d8;
+  --hero-panel: rgb(255 255 255 / 0.08);
+  --hero-icon: #8dbbff;
+  --hero-toggle: rgb(255 255 255 / 0.1);
+  --hero-on: #eaf0f8;
+  --hero-on-ink: #0b1220;
+  --hero-save: rgb(255 255 255 / 0.08);
+  --hero-save-line: rgb(255 255 255 / 0.24);
+  --hero-ok: #7be0ae;
+  --hero-err: #ffc2b8;
+  --cloud: #d5deeb;
+  --cloud-dark: #d5deeb;
+  --cloud-stroke: #d5deeb;
+  --drop: #7ab0ff;
+}
+.hero {
+  background: var(--hero-bg);
+  color: var(--hero-ink);
+}
+[data-theme="dark"] .hero-night {
+  outline: 1px solid rgb(255 255 255 / 0.08);
+  outline-offset: -1px;
 }
 
 @theme inline {
@@ -17,9 +174,30 @@
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-control: var(--control);
   --color-rain: var(--rain);
+  --color-link: var(--link);
+  --color-focus: var(--focus);
+  --color-accent-soft: var(--accent-soft);
   --color-sun: var(--sun);
+  --color-sun-ink: var(--sun-ink);
+  --color-sun-soft: var(--sun-soft);
+  --color-ok: var(--ok);
   --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
+  --color-track: var(--track);
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-muted: var(--hero-muted);
+  --color-hero-panel: var(--hero-panel);
+  --color-hero-icon: var(--hero-icon);
+  --color-hero-toggle: var(--hero-toggle);
+  --color-hero-on: var(--hero-on);
+  --color-hero-on-ink: var(--hero-on-ink);
+  --color-hero-save: var(--hero-save);
+  --color-hero-save-line: var(--hero-save-line);
+  --color-hero-ok: var(--hero-ok);
+  --color-hero-err: var(--hero-err);
+  --shadow-pop: var(--shadow);
   --font-sans: var(--font-bricolage), system-ui, sans-serif;
 }
 
@@ -30,6 +208,21 @@ body {
 
 /* Clear keyboard focus on every interactive element */
 :focus-visible {
-  outline: 3px solid var(--rain);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* The search box shows one ring around the whole field (input + buttons) */
+.search-field:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.search-field input:focus-visible {
+  outline: none;
+}
+
+/* Sideways-scrolling rows: keep the scrollbar thin and out of the way */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }

@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { ProfileProvider } from "@/components/ProfileProvider";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import { THEME_SCRIPT } from "@/lib/themeScript";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -18,7 +19,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${bricolage.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the theme script below sets data-theme before React loads
+    <html lang="en" className={`${bricolage.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* Picks light or dark before the first paint, so the page never flashes the wrong theme */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       {/* A column that fills the screen, so the footer sits at the bottom even on short pages */}
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>

@@ -15,7 +15,9 @@ export default function FavouritesNavLink() {
     <Link
       href="/favourites"
       aria-current={isCurrent ? "page" : undefined}
-      className={`text-sm hover:text-rain ${isCurrent ? "font-medium text-ink underline" : "text-muted"}`}
+      className={`flex min-h-11 items-center rounded-xl px-2.5 text-[15px] sm:px-3 sm:text-base ${
+        isCurrent ? "bg-accent-soft font-semibold text-link" : "font-medium text-ink hover:bg-accent-soft"
+      }`}
     >
       Favourites
     </Link>

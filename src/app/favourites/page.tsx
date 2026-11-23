@@ -14,20 +14,26 @@ export default function FavouritesPage() {
   const favourites = useFavourites();
 
   return (
-    <main className="mx-auto w-full max-w-xl px-5 py-8 sm:py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Your favourites</h1>
+    <main className="mx-auto w-full max-w-xl px-4 pt-2 pb-10 sm:px-5 sm:pt-4">
+      <h1 className="px-1 text-3xl font-bold tracking-tight">Your favourites</h1>
 
       {authState.status === "checking" ? (
-        <p role="status" className="mt-6 text-muted">Loading…</p>
+        <p role="status" className="mt-5 px-1 text-muted">Loading…</p>
       ) : authState.status !== "signed-in" ? (
         // Guests and signed-out visitors: explain what an account gives them
-        <div className="mt-6">
-          <p className="text-muted">Sign in to save places and see them here on any device.</p>
+        <div className="mt-5 rounded-[28px] bg-surface px-6 py-7">
+          <p className="leading-relaxed text-muted">Sign in to save places and see them here on any device.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/sign-in" className="rounded-md bg-rain px-4 py-2 font-medium text-white hover:opacity-90">
+            <Link
+              href="/sign-in"
+              className="flex min-h-12 items-center rounded-[14px] bg-rain px-5 font-semibold text-white hover:brightness-110"
+            >
               Sign in
             </Link>
-            <Link href="/sign-up" className="rounded-md border border-line bg-surface px-4 py-2 hover:border-rain">
+            <Link
+              href="/sign-up"
+              className="flex min-h-12 items-center rounded-[14px] border border-line px-5 font-medium hover:bg-accent-soft"
+            >
               Create account
             </Link>
           </div>

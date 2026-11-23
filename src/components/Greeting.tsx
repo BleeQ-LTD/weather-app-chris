@@ -1,11 +1,11 @@
 "use client";
 
 import { useProfile } from "@/components/ProfileProvider";
-import { timeOfDayGreeting, weatherAdvice } from "@/lib/advice";
+import { timeOfDayGreeting } from "@/lib/advice";
 import type { WeatherData } from "@/lib/weather";
 
-// The first thing people see with the weather: a greeting and one line of advice,
-// e.g. "Good afternoon, Christopher" / "There's a 70% chance of rain today, so take an umbrella."
+// The first line of the hero card, e.g. "Good afternoon, Christopher".
+// The advice line now sits inside the hero card too (WeatherResults).
 export default function Greeting({ data }: { data: WeatherData }) {
   const profileState = useProfile();
   // Signed-in users are greeted by first name (from their Firestore profile); guests aren't
@@ -13,11 +13,8 @@ export default function Greeting({ data }: { data: WeatherData }) {
   const hello = timeOfDayGreeting(data.location.localTime);
 
   return (
-    <div className="mb-8 rounded-lg border border-line bg-surface p-4 sm:p-5">
-      <p className="text-xl font-semibold tracking-tight sm:text-2xl">
-        {firstName ? `${hello}, ${firstName}` : hello}
-      </p>
-      <p className="mt-1 text-muted">{weatherAdvice(data)}</p>
-    </div>
+    <p className="text-[15px] font-medium text-hero-muted sm:text-base">
+      {firstName ? `${hello}, ${firstName}` : hello}
+    </p>
   );
 }

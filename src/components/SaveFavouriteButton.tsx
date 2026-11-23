@@ -5,6 +5,7 @@ import Link from "next/link";
 import { favouriteId, removeFavourite, saveFavourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
 import type { WeatherData } from "@/lib/weather";
+import { AlertIcon, CheckIcon, StarIcon } from "@/components/icons";
 
 const CONFIRMATION_MS = 3000; // how long the "Saved" message stays visible
 const TIP_SEEN_KEY = "weather-app:save-tip-seen"; // remembered so the tip only shows once
@@ -47,9 +48,14 @@ export default function SaveFavouriteButton({
     return () => clearTimeout(timer);
   }, [confirmation]);
 
+  // Lives inside the hero card, so it uses the card's colours (hero-*) to stay readable
+  const pill =
+    "inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full border border-hero-save-line bg-hero-save pl-3.5 pr-[18px] text-[15px] font-semibold text-hero-ink";
+
   if (favourites.uid === null) {
     return (
-      <Link href="/sign-in" className="shrink-0 whitespace-nowrap text-sm text-muted underline hover:text-ink">
+      <Link href="/sign-in" className={`${pill} hover:brightness-95`}>
+        <StarIcon size={18} />
         Sign in to save
       </Link>
     );
@@ -58,10 +64,8 @@ export default function SaveFavouriteButton({
   // While we check whether this place is already saved, say so instead of showing a dead button
   if (favourites.isLoading) {
     return (
-      <span
-        role="status"
-        className="shrink-0 whitespace-nowrap rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-muted motion-safe:animate-pulse"
-      >
+      <span role="status" className={`${pill} text-hero-muted motion-safe:animate-pulse`}>
+        <StarIcon size={18} />
         Checking…
       </span>
     );
@@ -93,7 +97,7 @@ export default function SaveFavouriteButton({
     change
       .then(() => {
         // Only confirm once Firestore has actually stored the change
-        setConfirmation(wasSaved ? "Removed from your favourites" : "✓ Saved to your favourites");
+        setConfirmation(wasSaved ? "Removed from your favourites" : "Saved to your favourites");
       })
       .catch((err) => {
         console.error("[favourites] Could not update favourite:", err);
@@ -102,34 +106,48 @@ export default function SaveFavouriteButton({
   }
 
   return (
-    <div className="relative shrink-0 text-right">
-      <button
-        type="button"
-        onClick={handleClick}
-        aria-pressed={isSaved}
-        className="whitespace-nowrap rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:border-rain"
-      >
-        {isSaved ? "★ Saved" : "☆ Save"}
+    <div className="relative flex flex-col items-start gap-2">
+      <button type="button" onClick={handleClick} aria-pressed={isSaved} className={`${pill} hover:brightness-95`}>
+        {isSaved ? (
+          <StarIcon size={18} filled className="text-sun" />
+        ) : (
+          <StarIcon size={18} />
+        )}
+        {isSaved ? "Saved" : "Save"}
       </button>
 
       {showTip && (
         <div
           role="note"
-          className="absolute right-0 top-full z-10 mt-2 w-60 rounded-md border border-line bg-surface p-3 text-left text-sm shadow-md"
+          className="absolute top-full left-0 z-10 mt-2 w-64 rounded-2xl border border-line bg-surface p-4 text-left text-sm text-ink shadow-pop"
         >
-          <p>Tap ☆ Save to keep this place in your favourites, on any device.</p>
-          <button type="button" onClick={dismissTip} className="mt-2 text-sm font-medium text-rain underline">
+          <p>Tap Save to keep this place in your favourites, on any device.</p>
+          <button
+            type="button"
+            onClick={dismissTip}
+            className="mt-2 min-h-11 text-sm font-semibold text-link underline"
+          >
             Got it
           </button>
         </div>
       )}
 
       {/* Always on the page so screen readers announce each new message */}
-      <p role="status" aria-live="polite" className="mt-1 min-h-4 text-xs text-muted">
+      <p
+        role="status"
+        aria-live="polite"
+        className="flex min-h-5 items-center gap-1.5 text-sm font-medium text-hero-ok"
+      >
+        {confirmation && confirmation.startsWith("Saved") && <CheckIcon size={16} />}
         {confirmation}
       </p>
 
-      {error && <p role="alert" className="mt-1 text-xs">{error}</p>}
+      {error && (
+        <p role="alert" className="-mt-1 flex items-center gap-1.5 text-sm font-medium text-hero-err">
+          <AlertIcon size={16} />
+          {error}
+        </p>
+      )}
     </div>
   );
 }

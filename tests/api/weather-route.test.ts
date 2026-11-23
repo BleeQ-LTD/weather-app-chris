@@ -99,3 +99,51 @@ describe("GET /api/weather", () => {
     expect((await res.json()).error.code).toBe("LOCATION_NOT_FOUND");
   });
 });
+
+describe("GET /api/weather extra fields for the redesign (#71)", () => {
+  const hour = (time: string, temp: number, rain: number, isDay: number) => ({
+    time,
+    temp_c: temp,
+    chance_of_rain: rain,
+    is_day: isDay,
+    condition: { text: "Sunny", icon: "//cdn.weatherapi.com/s.png", code: 1000 },
+  });
+
+  it("adds hourly, UV, sunrise and the condition code when WeatherAPI sends them", async () => {
+    const upstream = {
+      ...validUpstream,
+      current: { ...validUpstream.current, uv: 9, vis_km: 10, pressure_mb: 1010, wind_dir: "SW", is_day: 1 },
+      forecast: {
+        forecastday: [
+          {
+            ...validUpstream.forecast.forecastday[0],
+            astro: { sunrise: "06:41 AM", sunset: "06:39 PM" },
+            hour: [
+              hour("2026-09-29 08:00", 25, 0, 1),
+              hour("2026-09-29 09:00", 26, 10, 1),
+              hour("2026-09-29 10:00", 27, 40, 1),
+            ],
+          },
+        ],
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(upstream)));
+
+    const body = await (await call()).json();
+
+    expect(body.current).toMatchObject({ uv: 9, visibility: 10, pressure: 1010, windDirection: "SW", isDay: true, code: 1003 });
+    expect(body.forecast[0]).toMatchObject({ code: 1183, sunrise: "06:41 AM", sunset: "06:39 PM" });
+    // local time is 9:05, so the list starts at 9:00 (8:00 has passed)
+    expect(body.hourly.map((h: { time: string }) => h.time)).toEqual(["2026-09-29 09:00", "2026-09-29 10:00"]);
+    expect(body.hourly[1]).toMatchObject({ temperature: 27, chanceOfRain: 40, isDay: true, code: 1000 });
+  });
+
+  it("still works when the extra fields are missing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(validUpstream)));
+    const res = await call();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.hourly).toBeUndefined();
+    expect(body.current.uv).toBeUndefined();
+  });
+});

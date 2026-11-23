@@ -23,6 +23,10 @@ export function weatherAdvice(data: WeatherData): string {
     return `There's a ${today.chanceOfRain}% chance of rain today, so take an umbrella.`;
   }
   if (current.temperature >= 33) return "It's hot out, so drink plenty of water and find some shade.";
+  // Only when it's daytime: WeatherAPI can report the day's UV after dark
+  if (current.uv !== undefined && current.uv >= 8 && current.isDay !== false) {
+    return "UV is very high, so wear sunscreen and find shade around midday.";
+  }
   if (current.temperature <= 10) return "It's cold, so wear a warm jacket.";
   if (current.windSpeed >= 35) return "It's windy, so hold on to anything light.";
   if (/fog|mist|haze/.test(condition)) return "Visibility is low, so take care on the roads.";

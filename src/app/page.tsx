@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import SearchForm from "@/components/SearchForm";
 import WeatherResults from "@/components/WeatherResults";
@@ -15,6 +15,7 @@ import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
 import Greeting from "@/components/Greeting";
+import { CloudOffIcon, RefreshIcon, SearchIcon } from "@/components/icons";
 
 
 // Every screen the app can be on. Only one is possible at a time.
@@ -300,10 +301,11 @@ function WeatherApp() {
   }[view.status];
 
   return (
-    <main className="mx-auto w-full max-w-xl px-5 py-8 sm:py-10">
+    <main className="mx-auto w-full max-w-6xl px-4 pt-1 pb-8 sm:px-8 sm:pt-2 sm:pb-12">
       {/* The visible app name is in the top nav; this heading is for screen readers */}
       <h1 className="sr-only">Weather</h1>
 
+      <div className="max-w-xl">
       <SearchForm
         near={near}
         value={query}
@@ -314,62 +316,149 @@ function WeatherApp() {
         isLoading={view.status === "loading"}
         inputRef={inputRef}
       />
+      </div>
 
       <p role="status" className="sr-only">
         {announcement}
       </p>
 
-      <section className="mt-10" aria-busy={view.status === "loading"}>
-        {view.status === "idle" && <LocationPrompt onLocated={showMyLocation} />}
-
-        {view.status === "loading" && (
-          <div>
-            <p className="text-muted">Loading weather for {view.query}…</p>
-            <div className="mt-6 space-y-4 motion-safe:animate-pulse" aria-hidden="true">
-              <div className="h-8 w-40 rounded bg-line" />
-              <div className="h-16 w-56 rounded bg-line" />
-              <div className="h-20 w-full rounded bg-line" />
-            </div>
+      <section className="mt-5 sm:mt-6" aria-busy={view.status === "loading"}>
+        {view.status === "idle" && (
+          <div className="max-w-xl">
+            <LocationPrompt onLocated={showMyLocation} />
           </div>
         )}
 
+        {view.status === "loading" && <WeatherLoading label={view.query} />}
+
         {view.status === "not-found" && (
-          <div className="border-l-4 border-alert pl-4">
-            <h2 className="font-semibold">Location not found</h2>
-            <p className="mt-1">{view.message}</p>
-          </div>
+          <StateCard tone="warn" icon={<SearchIcon size={28} />} title="Location not found">
+            {view.message}
+          </StateCard>
         )}
 
         {view.status === "error" && (
-          <div className="border-l-4 border-alert pl-4">
-            <h2 className="font-semibold">Weather unavailable</h2>
-            <p className="mt-1">{view.message}</p>
-            <button
-              type="button"
-              onClick={() =>
-                view.searchText
-                  ? handleSearch(view.searchText)
-                  : fetchWeather(view.query, view.label, undefined, view.place)
-              }
-              className="mt-3 rounded-md border border-line bg-surface px-4 py-2 font-medium hover:border-rain"
-            >
-              Try again
-            </button>
-          </div>
+          <StateCard
+            tone="error"
+            icon={<CloudOffIcon size={30} />}
+            title="Weather unavailable"
+            action={
+              <button
+                type="button"
+                onClick={() =>
+                  view.searchText
+                    ? handleSearch(view.searchText)
+                    : fetchWeather(view.query, view.label, undefined, view.place)
+                }
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-rain font-semibold text-white hover:brightness-110"
+              >
+                <RefreshIcon size={18} />
+                Try again
+              </button>
+            }
+          >
+            {view.message}
+          </StateCard>
         )}
+
         {view.status === "success" && (
-          <>
-            <Greeting data={view.data} />
-            <WeatherResults
-              data={view.data}
-              fetchedAt={view.fetchedAt}
-              onRefresh={refreshWeather}
-              action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
-            />
-          </>
-        )}           
-         </section>
-       </main>
+          <WeatherResults
+            data={view.data}
+            fetchedAt={view.fetchedAt}
+            onRefresh={refreshWeather}
+            greeting={<Greeting data={view.data} />}
+            action={<SaveFavouriteButton location={view.data.location} favourites={favourites} />}
+          />
+        )}
+      </section>
+    </main>
+  );
+}
+
+// A centred card for "not found" and "error": icon, heading, message and an optional button
+function StateCard({
+  tone,
+  icon,
+  title,
+  children,
+  action,
+}: {
+  tone: "warn" | "error";
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div
+      className={`flex max-w-xl flex-col items-center gap-3.5 rounded-[28px] bg-surface px-6 py-7 text-center ${
+        tone === "error" ? "border border-alert/40" : ""
+      }`}
+    >
+      <span
+        className={`flex h-16 w-16 items-center justify-center rounded-full ${
+          tone === "error" ? "bg-alert-soft text-alert" : "bg-sun-soft text-sun-ink"
+        }`}
+      >
+        {icon}
+      </span>
+      <h2 className="text-[22px] font-bold">{title}</h2>
+      <p className="leading-relaxed text-muted">{children}</p>
+      {action && <div className="mt-1 w-full">{action}</div>}
+    </div>
+  );
+}
+
+// Grey shapes in the layout of the weather, so the page doesn't jump when it arrives
+function WeatherLoading({ label }: { label: string }) {
+  const shape = "rounded-lg bg-line motion-safe:animate-pulse";
+  return (
+    <div>
+      <p className="flex items-center gap-2.5 px-1 font-medium text-muted">
+        <span
+          aria-hidden="true"
+          className="h-[18px] w-[18px] rounded-full border-[3px] border-line border-t-rain motion-safe:animate-spin"
+        />
+        Loading weather for {label}…
+      </p>
+      <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-6" aria-hidden="true">
+        <div className="flex flex-col gap-4 rounded-[28px] bg-surface p-5 sm:rounded-[32px] sm:p-8">
+          <div className={`h-3.5 w-36 ${shape}`} />
+          <div className={`h-7 w-32 ${shape}`} />
+          <div className={`h-3.5 w-44 ${shape}`} />
+          <div className="mt-2 flex items-center justify-between">
+            <div className={`h-24 w-36 rounded-2xl ${shape}`} />
+            <div className={`h-28 w-28 rounded-full ${shape}`} />
+          </div>
+          <div className={`h-5 w-24 ${shape}`} />
+          <div className={`h-14 w-full rounded-[18px] ${shape}`} />
+        </div>
+        <div className="flex flex-col gap-5 lg:gap-6">
+          <div className="flex flex-col gap-4 rounded-3xl bg-surface px-5 py-4">
+            <div className={`h-4 w-28 ${shape}`} />
+            <div className="flex justify-between">
+              {[0, 1, 2, 3, 4].map((key) => (
+                <div key={key} className="flex flex-col items-center gap-2">
+                  <div className={`h-3 w-8 ${shape}`} />
+                  <div className={`h-8 w-8 rounded-full ${shape}`} />
+                  <div className={`h-3.5 w-9 ${shape}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 rounded-3xl bg-surface px-5 py-4">
+            <div className={`h-4 w-28 ${shape}`} />
+            {[0, 1, 2].map((key) => (
+              <div key={key} className="flex items-center gap-3">
+                <div className={`h-3.5 w-12 ${shape}`} />
+                <div className={`h-8 w-8 rounded-full ${shape}`} />
+                <div className={`h-3.5 flex-1 ${shape}`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
