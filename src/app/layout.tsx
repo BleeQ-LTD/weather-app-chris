@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { ProfileProvider } from "@/components/ProfileProvider";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import UpdateBanner from "@/components/UpdateBanner";
 import { THEME_SCRIPT } from "@/lib/themeScript";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <SiteHeader />
             <div className="flex-1">{children}</div>
             <SiteFooter />
+            <UpdateBanner />
           </ProfileProvider>
         </AuthProvider>
       </body>
