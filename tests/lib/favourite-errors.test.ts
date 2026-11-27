@@ -29,3 +29,16 @@ describe("favouriteErrorReason", () => {
     expect(favouriteErrorReason({ code: "firestore/unavailable" }, true)).toMatch(/too slow/);
   });
 });
+
+describe("favouritesLoadMessage", () => {
+  it("is friendly and gives the real reason", async () => {
+    const { favouritesLoadMessage, LOAD_TIMED_OUT } = await import("@/lib/favouriteErrors");
+    expect(favouritesLoadMessage(null, false)).toMatch(/because you're offline\. Reconnect, then tap Try again/);
+    expect(favouritesLoadMessage(LOAD_TIMED_OUT, true)).toMatch(/taking longer than usual.*connection may be slow/);
+    expect(favouritesLoadMessage({ code: "firestore/unavailable" }, true)).toMatch(/connection may be slow/);
+    expect(favouritesLoadMessage({ code: "unauthenticated" }, true)).toMatch(/signed out.*Sign in again/);
+    expect(favouritesLoadMessage({ code: "permission-denied" }, true)).toBe(
+      "Sorry, we couldn't load your saved places. That's a problem on our side, not yours. Tap Try again in a moment."
+    );
+  });
+});

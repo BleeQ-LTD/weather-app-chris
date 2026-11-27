@@ -81,6 +81,10 @@ export function subscribeToFavourites(
 
   return onSnapshot(
     favouritesQuery,
+    // Without this, Firestore stays quiet when the server sends the same places the
+    // cache already showed (only fromCache changes), so the caller never hears that
+    // the server answered and the list times out. See issue #93.
+    { includeMetadataChanges: true },
     (snapshot) => {
       const items = snapshot.docs.map((document) => {
         const data = document.data();

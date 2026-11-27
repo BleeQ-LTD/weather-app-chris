@@ -27,3 +27,19 @@ export function favouriteErrorReason(error: unknown, isOnline: boolean): string 
 export function browserIsOnline(): boolean {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
+
+// Stands in for an error when the list took too long and Firestore never answered
+export const LOAD_TIMED_OUT = { code: "deadline-exceeded" };
+
+// In:  why the favourites list didn't load (a Firestore error or LOAD_TIMED_OUT), and
+//      whether the browser is online.
+// Out: a friendly message that still says the real reason and what to do next.
+export function favouritesLoadMessage(error: unknown, isOnline: boolean): string {
+  if (!isOnline) return "We couldn't load your saved places because you're offline. Reconnect, then tap Try again.";
+  const code = errorCode(error);
+  if (SLOW.includes(code)) {
+    return "Your saved places are taking longer than usual to load. Your connection may be slow, so give it a moment and tap Try again.";
+  }
+  if (SIGNED_OUT.includes(code)) return "You've been signed out, so we can't show your saved places. Sign in again to see them.";
+  return "Sorry, we couldn't load your saved places. That's a problem on our side, not yours. Tap Try again in a moment.";
+}
