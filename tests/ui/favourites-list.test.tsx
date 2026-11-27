@@ -55,10 +55,15 @@ describe("FavouritesList messages", () => {
   it("shows a small load error with Try again next to it", async () => {
     const retry = vi.fn();
     const user = userEvent.setup();
-    render(<FavouritesList favourites={state({ items: [], failed: true, retry })} onPick={() => {}} />);
+    render(
+      <FavouritesList
+        favourites={state({ items: [], failed: true, failure: { code: "deadline-exceeded" }, retry })}
+        onPick={() => {}}
+      />
+    );
 
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Couldn't load your favourites.");
+    expect(alert).toHaveTextContent("Your saved places are taking longer than usual to load.");
     await user.click(within(alert).getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledTimes(1);
   });

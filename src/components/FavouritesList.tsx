@@ -5,7 +5,7 @@ import Link from "next/link";
 import { favouriteLabel, removeFavourite, type Favourite } from "@/lib/favourites";
 import type { FavouritesState } from "@/lib/useFavourites";
 import { AlertIcon, PinIcon, RefreshIcon, SearchIcon, StarIcon } from "@/components/icons";
-import { browserIsOnline, favouriteErrorReason } from "@/lib/favouriteErrors";
+import { browserIsOnline, favouriteErrorReason, favouritesLoadMessage } from "@/lib/favouriteErrors";
 
 // The list on the Favourites page: loading, slow, error (with Try again),
 // empty, or the saved places. Only one of these shows at a time.
@@ -16,7 +16,7 @@ export default function FavouritesList({
   favourites: FavouritesState;
   onPick: (favourite: Favourite) => void;
 }) {
-  const { uid, items, isLoading, isSlow, failed, retry } = favourites;
+  const { uid, items, isLoading, isSlow, failed, failure, retry } = favourites;
   // Which place failed to be removed and why, shown under that place's row
   const [removeError, setRemoveError] = useState<{ id: string; message: string } | null>(null);
 
@@ -49,7 +49,7 @@ export default function FavouritesList({
       >
         <AlertIcon size={18} className="shrink-0" />
         <p className="min-w-0 flex-1">
-          Couldn&apos;t load your favourites. {favouriteErrorReason(null, browserIsOnline())}
+          {favouritesLoadMessage(failure, browserIsOnline())}
         </p>
         <button
           type="button"

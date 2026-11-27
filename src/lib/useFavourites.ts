@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { subscribeToFavourites, type Favourite } from "@/lib/favourites";
+import { LOAD_TIMED_OUT } from "@/lib/favouriteErrors";
 
 const SLOW_AFTER_MS = 4_000; // after this, tell the user it's taking a while
 const FAIL_AFTER_MS = 10_000; // after this, show a connection error with "Try again"
@@ -11,10 +12,11 @@ export type FavouritesState = {
   isLoading: boolean;
   isSlow: boolean; // still loading after SLOW_AFTER_MS
   failed: boolean; // couldn't load (error or timed out)
+  failure?: unknown; // why: the Firestore error, or LOAD_TIMED_OUT
   retry: () => void;
 };
 
-type Loaded = { key: string; items: Favourite[]; failed: boolean };
+type Loaded = { key: string; items: Favourite[]; failed: boolean; failure?: unknown };
 
 // Gives any component the signed-in user's favourites, kept up to date live
 export function useFavourites(): FavouritesState {
@@ -32,7 +34,7 @@ export function useFavourites(): FavouritesState {
 
     const slowTimer = setTimeout(() => setSlowKey(key), SLOW_AFTER_MS);
     const failTimer = setTimeout(() => {
-      if (!heardFromServer) setLoaded({ key, items: [], failed: true });
+      if (!heardFromServer) setLoaded({ key, items: [], failed: true, failure: LOAD_TIMED_OUT });
     }, FAIL_AFTER_MS);
 
     const unsubscribe = subscribeToFavourites(
@@ -50,7 +52,7 @@ export function useFavourites(): FavouritesState {
         console.error("[favourites] Could not load favourites:", error);
         clearTimeout(slowTimer);
         clearTimeout(failTimer);
-        setLoaded({ key, items: [], failed: true });
+        setLoaded({ key, items: [], failed: true, failure: error });
       }
     );
 
@@ -72,6 +74,7 @@ export function useFavourites(): FavouritesState {
     isLoading,
     isSlow: isLoading && slowKey === key,
     failed: isCurrent && loaded ? loaded.failed : false,
+    failure: isCurrent && loaded ? loaded.failure : undefined,
     retry: () => setAttempt((count) => count + 1),
   };
 }
