@@ -12,6 +12,8 @@ import ProfileError from "@/components/ProfileError";
 import LocationPrompt from "@/components/LocationPrompt";
 import SaveFavouriteButton from "@/components/SaveFavouriteButton";
 import CompareLink from "@/components/CompareLink";
+import ShareButton from "@/components/ShareButton";
+import { placeFromLink } from "@/lib/share";
 import { favouriteLabel, type Favourite } from "@/lib/favourites";
 import { useFavourites } from "@/lib/useFavourites";
 import type { NearbyHint } from "@/components/SearchForm";
@@ -306,6 +308,21 @@ function WeatherApp() {
     return () => clearTimeout(timer);
   }, [favourites.isLoading, favourites.items, pickFavourite]);
 
+  // Opening a shared link (/?place=Lagos&region=…&country=…&lat=…&lon=…):
+  // show that place's live weather straight away, then tidy the address bar.
+  // Like favourites above, the weather loads in a timer callback, not in the effect itself.
+  useEffect(() => {
+    const shared = placeFromLink(window.location.search);
+    if (!shared) return;
+    const place: Suggestion = { id: `shared_${shared.lat}_${shared.lon}`, kind: "city", ...shared };
+    const timer = setTimeout(() => {
+      window.history.replaceState(null, "", "/");
+      setQuery(formatPlace(place));
+      fetchWeather(weatherQueryFor(place), formatPlace(place), undefined, place);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchWeather]);
+
   // Short text for screen readers, announced whenever the state changes
   const announcement = {
     idle: "",
@@ -386,6 +403,7 @@ function WeatherApp() {
               <div className="flex flex-wrap items-start gap-2">
                 <SaveFavouriteButton location={view.data.location} favourites={favourites} />
                 <CompareLink location={view.data.location} />
+                <ShareButton data={view.data} />
               </div>
             }
           />

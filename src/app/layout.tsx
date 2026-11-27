@@ -13,9 +13,30 @@ const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
 });
 
+// The site's public address, so link previews get full image URLs.
+// Vercel sets VERCEL_PROJECT_PRODUCTION_URL; anywhere else we fall back to the live site.
+const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : "https://chris-weather.bleeq.app";
+
+const description = "Current conditions, the next 12 hours and a 3-day forecast for any city.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Weather",
-  description: "Current conditions and a 3-day forecast for any city.",
+  description,
+  // What WhatsApp, X and others show when someone shares a link to the app
+  openGraph: {
+    type: "website",
+    siteName: "Weather",
+    title: "See the live weather",
+    description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "See the live weather",
+    description,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
