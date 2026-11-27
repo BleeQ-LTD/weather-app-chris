@@ -21,11 +21,23 @@ service cloud.firestore {
     // add to try to give themselves extra powers.
     function isValidProfile(data) {
       return data.keys().hasAll(['name', 'email', 'gender', 'createdAt'])
-        && data.keys().hasOnly(['name', 'email', 'gender', 'createdAt'])
+        && data.keys().hasOnly(['name', 'email', 'gender', 'createdAt', 'photo'])
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 50
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
         && data.gender in ['female', 'male', 'other', 'prefer-not-to-say']
-        && data.createdAt is timestamp;
+        && data.createdAt is timestamp
+        && isOptionalPhoto(data);
+    }
+
+    // An optional profile photo: either missing, or a small JPEG stored as text
+    // ("data:image/jpeg;base64,..."). The app shrinks photos to 160x160 (about 10-20 KB)
+    // before saving; 60,000 characters leaves room while stopping large uploads.
+    // (Cloud Storage would need the Blaze plan; the project is on Spark.)
+    function isOptionalPhoto(data) {
+      return !('photo' in data)
+        || (data.photo is string
+          && data.photo.size() <= 60000
+          && data.photo.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$'));
     }
 
     // An optional text field: either missing, or a string of at most 100 characters

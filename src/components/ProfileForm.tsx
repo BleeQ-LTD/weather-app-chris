@@ -10,10 +10,12 @@ import {
   MAX_NAME_LENGTH,
   profileSaveError,
   updateProfileDetails,
+  updateProfilePhoto,
   validateProfileFields,
   type Profile,
   type ProfileFieldErrors,
 } from "@/lib/profile";
+import { ACCEPTED_TYPES, checkAvatarFile, makeAvatar } from "@/lib/avatarImage";
 
 const SAVED_MESSAGE_MS = 4000; // how long "Profile saved" stays visible
 
@@ -92,20 +94,25 @@ export default function ProfileForm({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Who you are */}
-      <section aria-label="Your account" className="flex items-center gap-4 rounded-[28px] bg-surface p-5 sm:p-6">
-        <Avatar photoURL={user.photoURL} name={profile.name} size={72} />
-        <div className="min-w-0">
-          <p className="truncate text-xl font-bold">{profile.name}</p>
-          <p className="truncate text-muted">{profile.email}</p>
-          <p className="mt-1 text-[13px] text-muted">
-            {user.photoURL
-              ? "Your photo comes from your Google account."
-              : signedInWithGoogle
-                ? "Your Google account has no photo, so we show your initial."
-                : "Accounts made with email show your initial."}
-          </p>
+      {/* Who you are, with the photo controls */}
+      <section aria-label="Your account" className="flex flex-col gap-4 rounded-[28px] bg-surface p-5 sm:p-6">
+        <div className="flex items-center gap-4">
+          <Avatar photoURL={profile.photo || user.photoURL} name={profile.name} size={72} />
+          <div className="min-w-0">
+            <p className="truncate text-xl font-bold">{profile.name}</p>
+            <p className="truncate text-muted">{profile.email}</p>
+            <p className="mt-1 text-[13px] text-muted">
+              {profile.photo
+                ? "This is the photo you added."
+                : user.photoURL
+                  ? "Your photo comes from your Google account. You can use a different one."
+                  : signedInWithGoogle
+                    ? "Your Google account has no photo. Add one, or we'll show your initial."
+                    : "Add a photo, or we'll show your initial."}
+            </p>
+          </div>
         </div>
+        <ProfilePhoto uid={user.uid} profile={profile} onSaved={onSaved} />
       </section>
 
       {/* Edit details */}
@@ -186,6 +193,124 @@ export default function ProfileForm({
           )}
         </div>
       </form>
+    </div>
+  );
+}
+
+// Add, change or remove the user's own photo. The photo is shrunk in the browser
+// (makeAvatar) and saved on their profile; the result shows right under the buttons.
+function ProfilePhoto({
+  uid,
+  profile,
+  onSaved,
+}: {
+  uid: string;
+  profile: Profile;
+  onSaved: (profile: Profile) => void;
+}) {
+  const [busy, setBusy] = useState<"" | "saving" | "removing">("");
+  const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  async function choose(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = ""; // so choosing the same file again still works
+    if (!file) return;
+    setMessage(null);
+
+    const problem = checkAvatarFile(file);
+    if (problem) {
+      setMessage({ kind: "error", text: problem });
+      return;
+    }
+    if (!isOnline()) {
+      setMessage({ kind: "error", text: `Couldn't save your photo. ${profileSaveError(null, false)}` });
+      return;
+    }
+
+    setBusy("saving");
+    let photo: string;
+    try {
+      photo = await makeAvatar(file);
+    } catch (err) {
+      console.error("[profile] Could not read the chosen image:", err);
+      setMessage({ kind: "error", text: "We couldn't read that image. Try a different one." });
+      setBusy("");
+      return;
+    }
+    try {
+      await updateProfilePhoto(uid, photo);
+      onSaved({ ...profile, photo }); // the nav shows the new photo straight away
+      setMessage({ kind: "ok", text: "Photo updated" });
+    } catch (err) {
+      console.error("[profile] Could not save the photo:", err);
+      setMessage({ kind: "error", text: `Couldn't save your photo. ${profileSaveError(err, isOnline())}` });
+    }
+    setBusy("");
+  }
+
+  async function remove() {
+    setMessage(null);
+    if (!isOnline()) {
+      setMessage({ kind: "error", text: `Couldn't remove your photo. ${profileSaveError(null, false)}` });
+      return;
+    }
+    setBusy("removing");
+    try {
+      await updateProfilePhoto(uid, null);
+      const rest = { ...profile };
+      delete rest.photo;
+      onSaved(rest);
+      setMessage({ kind: "ok", text: "Photo removed" });
+    } catch (err) {
+      console.error("[profile] Could not remove the photo:", err);
+      setMessage({ kind: "error", text: `Couldn't remove your photo. ${profileSaveError(err, isOnline())}` });
+    }
+    setBusy("");
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <div className="flex flex-wrap gap-2">
+        {/* A real file input inside the label, so it works with the keyboard and screen readers */}
+        <label
+          className={`flex h-11 cursor-pointer items-center rounded-xl border-[1.5px] border-link px-4 text-sm font-semibold text-link focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus hover:bg-accent-soft ${
+            busy ? "pointer-events-none opacity-60" : ""
+          }`}
+        >
+          {busy === "saving" ? "Saving photo…" : profile.photo ? "Change photo" : "Add a photo"}
+          <input
+            type="file"
+            accept={ACCEPTED_TYPES.join(",")}
+            onChange={choose}
+            disabled={Boolean(busy)}
+            className="sr-only"
+          />
+        </label>
+        {profile.photo && (
+          <button
+            type="button"
+            onClick={remove}
+            disabled={Boolean(busy)}
+            className="h-11 rounded-xl border border-line px-4 text-sm font-medium text-muted hover:border-alert/40 hover:bg-alert-soft hover:text-alert disabled:opacity-60"
+          >
+            {busy === "removing" ? "Removing…" : "Remove photo"}
+          </button>
+        )}
+      </div>
+      <p className="text-[13px] text-muted">JPG, PNG, WebP or GIF, up to 10 MB. We crop it to a square.</p>
+      {message?.kind === "ok" && (
+        <p role="status" className="flex items-center gap-1.5 text-sm font-medium text-ok">
+          <CheckIcon size={16} />
+          {message.text}
+        </p>
+      )}
+      {message?.kind === "error" && (
+        <p role="alert" className="flex items-start gap-1.5 text-sm font-medium text-alert">
+          <AlertIcon size={16} className="mt-0.5 shrink-0" />
+          {message.text}
+        </p>
+      )}
     </div>
   );
 }

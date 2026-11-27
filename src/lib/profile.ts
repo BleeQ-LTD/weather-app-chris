@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { deleteField, doc, getDocFromServer, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // The gender choices. These must match the list in firestore.rules.
@@ -16,9 +16,10 @@ export type Profile = {
   name: string;
   email: string;
   gender: string;
+  photo?: string; // the user's own photo, a small JPEG as text; none = Google photo or initial
 };
 
-export type NewProfile = Profile;
+export type NewProfile = Omit<Profile, "photo">;
 
 // Must match the name length allowed in firestore.rules
 export const MAX_NAME_LENGTH = 50;
@@ -43,6 +44,12 @@ export function validateProfileFields(name: string, gender: string): ProfileFiel
 // are; the rules check the whole profile is still valid and createdAt didn't change.
 export async function updateProfileDetails(uid: string, details: Pick<Profile, "name" | "gender">) {
   await updateDoc(doc(db, "users", uid), { name: details.name, gender: details.gender });
+}
+
+// Saves the user's own photo (from makeAvatar) at users/{uid}, or removes it when null.
+// The rules only accept a small JPEG; removing it brings back the Google photo or initial.
+export async function updateProfilePhoto(uid: string, photo: string | null) {
+  await updateDoc(doc(db, "users", uid), { photo: photo ?? deleteField() });
 }
 
 // In:  the error from saving, and whether the browser is online.
@@ -91,6 +98,10 @@ export async function loadProfile(uid: string): Promise<Profile | null> {
     name: String(data.name ?? ""),
     email: String(data.email ?? ""),
     gender: String(data.gender ?? ""),
+    // Only a real image; anything else is ignored rather than shown
+    ...(typeof data.photo === "string" && data.photo.startsWith("data:image/jpeg;base64,")
+      ? { photo: data.photo }
+      : {}),
   };
 }
 
